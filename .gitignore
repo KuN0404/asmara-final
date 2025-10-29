@@ -1,0 +1,31 @@
+# Node
+node_modules/
+auth_info
+
+# Laravel
+vendor/
+.env
+.env.*
+!.env.example
+storage/**/*.log
+storage/framework/**
+storage/app/*.tmp
+storage/app/public
+
+# Vue
+dist/
+dist-ssr/
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sw?
+*.tsbuildinfo
