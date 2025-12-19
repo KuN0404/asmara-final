@@ -22,28 +22,45 @@ class UserController extends Controller
     // }
 
     public function index(Request $request)
-{
-    $users = User::with('roles')
-        // Exclude super_admin users from listing
-        ->whereDoesntHave('roles', function ($q) {
-            $q->where('name', 'super_admin');
-        })
-        ->when($request->role, function ($q) use ($request) {
-            $q->role($request->role);
-        })
-        ->when($request->status, function ($q) use ($request) {
+    {
+        $query = User::with('roles')
+            // Exclude super_admin users from listing
+            ->whereDoesntHave('roles', function ($q) {
+                $q->where('name', 'super_admin');
+            });
+        
+        // Search filter
+        if ($request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('position', 'like', "%{$search}%")
+                  ->orWhere('whatsapp_number', 'like', "%{$search}%");
+            });
+        }
+        
+        // Role filter
+        if ($request->role) {
+            $query->role($request->role);
+        }
+        
+        // Status filter
+        if ($request->status) {
             if ($request->status === 'active') {
-                $q->whereNull('deleted_at');
+                $query->whereNull('deleted_at');
             } elseif ($request->status === 'inactive') {
-                $q->onlyTrashed();
+                $query->onlyTrashed();
             } elseif ($request->status === 'all') {
-                $q->withTrashed();
+                $query->withTrashed();
             }
-        })
-        ->paginate($request->per_page ?? 15);
+        }
+        
+        $users = $query->orderBy('name', 'asc')
+            ->paginate($request->per_page ?? 15);
 
-    return response()->json($users);
-}
+        return response()->json($users);
+    }
 
 
     public function store(Request $request)

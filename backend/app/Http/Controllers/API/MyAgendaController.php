@@ -212,10 +212,24 @@ class MyAgendaController extends Controller
     // ========== OPTIMIZED INDEX WITH EAGER LOADING ==========
     public function index(Request $request)
     {
+        $user = $request->user();
+        $isAdmin = $user->hasRole('super_admin') || $user->hasRole('kepala') || $user->hasRole('ketua_tim');
+        
         $query = MyAgenda::query()
             ->withTrashed() // Include soft deleted
-            ->with('creator:id,name,email') // Eager loading
-            ->ownedBy($request->user()->id); // Scope
+            ->with('creator:id,name,email'); // Eager loading
+        
+        // Admin roles can see ALL agendas
+        if ($isAdmin) {
+            // Filter by specific user if requested
+            if ($request->user_id) {
+                $query->ownedBy($request->user_id);
+            }
+            // Else show all agendas
+        } else {
+            // Regular users only see their own agendas
+            $query->ownedBy($user->id);
+        }
 
         // Filter by date range
         if ($request->start_date) {
@@ -235,13 +249,23 @@ class MyAgendaController extends Controller
 
     public function store(Request $request)
     {
+        $currentUser = auth()->user();
+        $isAdmin = $currentUser->hasRole('super_admin') || $currentUser->hasRole('kepala') || $currentUser->hasRole('ketua_tim');
+        
         $validated = $request->validate([
             'start_at' => 'required|date',
             'until_at' => 'required|date|after:start_at',
             'title' => 'required|string',
             'description' => 'nullable|string',
             'is_show_to_other' => 'required|boolean',
+            'user_id' => 'nullable|exists:users,id', // Admin can set target user
         ]);
+
+        // Determine the owner of the agenda
+        $ownerId = auth()->id();
+        if ($isAdmin && $request->user_id) {
+            $ownerId = $request->user_id;
+        }
 
         $agenda = MyAgenda::create([
             'title' => $validated['title'],
@@ -249,30 +273,31 @@ class MyAgendaController extends Controller
             'until_at' => $validated['until_at'],
             'description' => $validated['description'] ?? null,
             'is_show_to_other' => $validated['is_show_to_other'],
-            'created_by' => auth()->id(),
+            'created_by' => $ownerId,
         ]);
 
         // Load relationship untuk response
         $agenda->load('creator:id,name,email');
 
-//     // Send WhatsApp - HANYA 1X
-    $user = auth()->user();
-    if ($user->whatsapp_number) {
-        $message = "📝 *AGENDA PRIBADI BARU*\n\n" .
-                  "📌 {$agenda->title}\n" .
-                  "📅 " . Carbon::parse($agenda->start_at)->format('d M Y') . "\n" .
-                  "🕐 " . Carbon::parse($agenda->start_at)->format('H:i') . " - " . Carbon::parse($agenda->until_at)->format('H:i') . "\n" .
-                  ($agenda->description ? "\n📝 {$agenda->description}\n" : "") .
-                  "\n_Agenda pribadi Anda telah dibuat._";
+        // Send WhatsApp notification to the agenda owner
+        $targetUser = \App\Models\User::find($ownerId);
+        if ($targetUser && $targetUser->whatsapp_number) {
+            $creatorName = $ownerId !== auth()->id() ? " (oleh: {$currentUser->name})" : "";
+            $message = "📝 *AGENDA PRIBADI BARU*{$creatorName}\n\n" .
+                      "📌 {$agenda->title}\n" .
+                      "📅 " . Carbon::parse($agenda->start_at)->format('d M Y') . "\n" .
+                      "🕐 " . Carbon::parse($agenda->start_at)->format('H:i') . " - " . Carbon::parse($agenda->until_at)->format('H:i') . "\n" .
+                      ($agenda->description ? "\n📝 {$agenda->description}\n" : "") .
+                      "\n_Agenda pribadi Anda telah dibuat._";
 
-        SendWhatsAppNotification::dispatch(
-            $user->whatsapp_number,
-            $message,
-            'my_agenda',
-            'created',
-            $agenda->id
-        );
-    }
+            SendWhatsAppNotification::dispatch(
+                $targetUser->whatsapp_number,
+                $message,
+                'my_agenda',
+                'created',
+                $agenda->id
+            );
+        }
 
         return response()->json([
             'message' => 'Agenda berhasil dibuat',
@@ -282,10 +307,18 @@ class MyAgendaController extends Controller
 
     public function show($id)
     {
-        $agenda = MyAgenda::withTrashed()
-            ->with('creator:id,name,email')
-            ->ownedBy(auth()->id())
-            ->findOrFail($id);
+        $user = auth()->user();
+        $isAdmin = $user->hasRole('super_admin') || $user->hasRole('kepala') || $user->hasRole('ketua_tim');
+        
+        $query = MyAgenda::withTrashed()
+            ->with('creator:id,name,email');
+        
+        // Admin can view any agenda
+        if (!$isAdmin) {
+            $query->ownedBy(auth()->id());
+        }
+        
+        $agenda = $query->findOrFail($id);
 
         return response()->json($agenda);
     }
@@ -357,11 +390,19 @@ class MyAgendaController extends Controller
     // ========== PUBLIC AGENDAS ==========
     public function publicAgendas(Request $request)
     {
+        $user = $request->user();
+        $isAdmin = $user->hasRole('super_admin') || $user->hasRole('kepala') || $user->hasRole('ketua_tim');
+        
         $query = MyAgenda::query()
             ->withTrashed()
             ->with('creator:id,name,email')
-            ->publicAgendas() // Scope
-            ->where('created_by', '!=', $request->user()->id);
+            ->where('created_by', '!=', $user->id); // Exclude own agendas
+        
+        // Admin roles can see ALL other users' agendas
+        // Regular users only see public agendas
+        if (!$isAdmin) {
+            $query->publicAgendas(); // Scope for is_show_to_other = true
+        }
 
         if ($request->start_date) {
             $query->whereDate('start_at', '>=', $request->start_date);

@@ -9,10 +9,18 @@
       <div class="calendar-header">
         <div class="calendar-nav">
           <button class="nav-btn" @click="previousMonth">‹</button>
-          <h3 class="calendar-title">{{ monthNames[currentMonth] }} {{ currentYear }}</h3>
+          <button class="calendar-title-btn" @click="showMonthYearPicker = true">
+            {{ monthNames[currentMonth] }} {{ currentYear }}
+            <span class="picker-icon">📅</span>
+          </button>
           <button class="nav-btn" @click="nextMonth">›</button>
         </div>
-        <button class="nav-btn" @click="goToToday">Hari Ini</button>
+        <div class="calendar-actions">
+          <button class="nav-btn search-btn" @click="showMonthYearPicker = true" title="Cari Bulan & Tahun">
+            🔍
+          </button>
+          <button class="nav-btn" @click="goToToday">Hari Ini</button>
+        </div>
       </div>
 
       <div v-if="loading" class="loading-container">
@@ -94,14 +102,16 @@
                   @click="viewAgendaFromList(agenda)"
                 >
                   <div class="agenda-list-header">
-                    <span class="agenda-list-time">{{ formatTime(agenda.start_at) }}</span>
+                    <span class="agenda-list-time">{{ formatTime(agenda.start_at) }} - {{ formatTime(agenda.until_at) }}</span>
                     <span :class="getStatusClass(agenda.status)">
                       {{ getStatusText(agenda.status) }}
                     </span>
                   </div>
                   <h4 class="agenda-list-title">{{ agenda.title }}</h4>
-                  <p v-if="agenda.description" class="agenda-list-desc">
-                    {{ agenda.description }}
+                  <!-- Show creator name if available -->
+                  <p v-if="agenda.creator" class="agenda-list-creator">
+                    👤 {{ agenda.creator.name }}
+                    <span v-if="agenda.created_by === authStore.user?.id" class="own-badge">(Milik Saya)</span>
                   </p>
                 </div>
               </div>
@@ -169,6 +179,18 @@
                     placeholder="Masukkan deskripsi agenda"
                     rows="3"
                   ></textarea>
+                </div>
+
+                <!-- User Selector (Admin Only) -->
+                <div class="form-group" v-if="isAdminRole">
+                  <label class="form-label">Buat Agenda Untuk</label>
+                  <select v-model="form.user_id" class="form-input">
+                    <option :value="null">👤 Saya Sendiri</option>
+                    <option v-for="user in otherUsers" :key="user.id" :value="user.id">
+                      {{ user.name }} ({{ user.email }})
+                    </option>
+                  </select>
+                  <span class="form-hint">Sebagai admin, Anda dapat membuat agenda untuk user lain</span>
                 </div>
 
                 <div class="form-group">
@@ -310,6 +332,57 @@
                   ❌ Batalkan
                 </button>
               </div>
+
+              <!-- Back Button -->
+              <div class="detail-actions">
+                <button @click="closeDetailModal" class="btn btn-secondary">
+                  ← Kembali ke Daftar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ========== MONTH/YEAR PICKER MODAL ========== -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showMonthYearPicker" class="picker-overlay" @click.self="showMonthYearPicker = false">
+          <div class="picker-modal">
+            <div class="picker-header">
+              <h3>📅 Pilih Bulan & Tahun</h3>
+              <button @click="showMonthYearPicker = false" class="close-picker-btn">✕</button>
+            </div>
+            <div class="picker-content">
+              <!-- Year Selector -->
+              <div class="year-selector">
+                <button @click="pickerYear--" class="year-nav-btn">‹</button>
+                <select v-model="pickerYear" class="year-select">
+                  <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
+                </select>
+                <button @click="pickerYear++" class="year-nav-btn">›</button>
+              </div>
+              
+              <!-- Month Grid -->
+              <div class="month-grid">
+                <button
+                  v-for="(month, index) in monthNames"
+                  :key="index"
+                  class="month-btn"
+                  :class="{ 
+                    'active': pickerMonth === index && pickerYear === currentYear,
+                    'selected': pickerMonth === index
+                  }"
+                  @click="pickerMonth = index"
+                >
+                  {{ month.substring(0, 3) }}
+                </button>
+              </div>
+            </div>
+            <div class="picker-actions">
+              <button @click="showMonthYearPicker = false" class="btn-picker-cancel">Batal</button>
+              <button @click="goToSelectedMonthYear" class="btn-picker-go">🚀 Pergi ke Bulan</button>
             </div>
           </div>
         </div>
@@ -332,8 +405,24 @@ const loading = ref(true)
 const submitting = ref(false)
 const agendas = ref([])
 const publicAgendas = ref([])
+const users = ref([]) // For admin user selector
+
+// Check if current user is admin
+const isAdminRole = computed(() => {
+  return authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim')
+})
+
+// Filter out current user from list
+const otherUsers = computed(() => {
+  return users.value.filter(u => u.id !== authStore.user?.id)
+})
 
 const allAgendas = computed(() => {
+  // For admin roles, index() already returns ALL agendas, so no need to merge
+  if (isAdminRole.value) {
+    return agendas.value
+  }
+  // For regular users, merge own agendas + public agendas from others
   return [...agendas.value, ...publicAgendas.value]
 })
 
@@ -345,6 +434,30 @@ const truncateTitle = (title, maxLength = 15) => {
 
 const currentYear = ref(new Date().getFullYear())
 const currentMonth = ref(new Date().getMonth())
+
+// Month/Year Picker state
+const showMonthYearPicker = ref(false)
+const pickerYear = ref(new Date().getFullYear())
+const pickerMonth = ref(new Date().getMonth())
+
+// Generate year options (10 years back and 5 years forward)
+const yearOptions = computed(() => {
+  const currentYr = new Date().getFullYear()
+  const years = []
+  for (let y = currentYr - 10; y <= currentYr + 5; y++) {
+    years.push(y)
+  }
+  return years
+})
+
+// Go to selected month/year
+const goToSelectedMonthYear = async () => {
+  currentYear.value = pickerYear.value
+  currentMonth.value = pickerMonth.value
+  showMonthYearPicker.value = false
+  await Promise.all([loadAgendas(), loadPublicAgendas()])
+}
+
 const monthNames = [
   'Januari',
   'Februari',
@@ -377,6 +490,7 @@ const form = ref({
   status: 'comming_soon', // Default, akan di-set otomatis
   description: '',
   is_show_to_other: false,
+  user_id: null, // For admin to create agenda for other user
 })
 
 const canChangeStatus = (agenda) => {
@@ -632,6 +746,7 @@ const resetForm = () => {
     until_at: '',
     description: '',
     is_show_to_other: false,
+    user_id: null,
   }
   selectedAgenda.value = null
 }
@@ -733,8 +848,33 @@ const loadPublicAgendas = async () => {
   }
 }
 
+// Load all users for admin user selector
+const loadUsers = async () => {
+  try {
+    const response = await fetch('/api/users?per_page=100', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+    const data = await response.json()
+    users.value = data.data || data || []
+  } catch (error) {
+    console.error('Failed to load users:', error)
+    users.value = []
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([loadAgendas(), loadPublicAgendas()])
+  // Load users for admin role
+  if (isAdminRole.value) {
+    await loadUsers()
+    // Admin: index() already returns ALL agendas, no need for publicAgendas
+    await loadAgendas()
+  } else {
+    // Regular user: merge own agendas + public agendas
+    await Promise.all([loadAgendas(), loadPublicAgendas()])
+  }
 })
 </script>
 
@@ -783,6 +923,15 @@ onMounted(async () => {
 
 .btn-secondary:hover {
   background: #d1d5db;
+}
+
+/* Form hint for admin user selector */
+.form-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-top: 6px;
+  font-style: italic;
 }
 
 .btn-delete {
@@ -870,6 +1019,23 @@ onMounted(async () => {
   background: #fffbeb;
 }
 
+/* Creator info in agenda list */
+.agenda-list-creator {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.own-badge {
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-left: 6px;
+  font-weight: 500;
+}
+
 .agenda-list-header {
   display: flex;
   justify-content: space-between;
@@ -931,6 +1097,244 @@ onMounted(async () => {
 
 .nav-btn:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* Clickable Calendar Title Button */
+.calendar-title-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 1.3rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.calendar-title-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.02);
+}
+
+.picker-icon {
+  font-size: 1rem;
+}
+
+.calendar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.search-btn {
+  font-size: 1.1rem;
+}
+
+/* Month/Year Picker Modal */
+.picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10001;
+  padding: 20px;
+}
+
+.picker-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.picker-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #1e293b;
+}
+
+.close-picker-btn {
+  background: #f3f4f6;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.close-picker-btn:hover {
+  background: #e5e7eb;
+  color: #1e293b;
+}
+
+.picker-content {
+  margin-bottom: 20px;
+}
+
+/* Year Selector */
+.year-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.year-nav-btn {
+  background: #f3f4f6;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.year-nav-btn:hover {
+  background: #e5e7eb;
+}
+
+.year-select {
+  padding: 10px 20px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  border: 2px solid #1e40af;
+  border-radius: 8px;
+  background: white;
+  color: #1e40af;
+  cursor: pointer;
+  text-align: center;
+  min-width: 120px;
+}
+
+.year-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.2);
+}
+
+/* Month Grid */
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.month-btn {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 12px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.month-btn:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+
+.month-btn.selected {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: white;
+}
+
+.month-btn.active {
+  box-shadow: 0 0 0 2px #fbbf24;
+}
+
+/* Picker Actions */
+.picker-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-picker-cancel {
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-picker-cancel:hover {
+  background: #f1f5f9;
+}
+
+.btn-picker-go {
+  padding: 10px 24px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-picker-go:hover {
+  background: linear-gradient(135deg, #2563eb, #1e3a8a);
+  transform: translateY(-1px);
+}
+
+/* Modal fade transition */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 
 .calendar-title {

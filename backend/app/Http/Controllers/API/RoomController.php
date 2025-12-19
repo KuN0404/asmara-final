@@ -10,9 +10,24 @@ class RoomController extends Controller
 {
     public function index(Request $request)
     {
-        $rooms = Room::when($request->is_available, function ($q) use ($request) {
-            $q->where('is_available', $request->is_available);
-        })->paginate($request->per_page ?? 15);
+        $query = Room::query();
+        
+        // Search filter
+        if ($request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('location', 'like', "%{$search}%");
+            });
+        }
+        
+        // Availability filter
+        if ($request->has('is_available')) {
+            $query->where('is_available', $request->is_available);
+        }
+        
+        $rooms = $query->orderBy('name', 'asc')
+            ->paginate($request->per_page ?? 15);
 
         return response()->json($rooms);
     }

@@ -10,6 +10,13 @@
 
     <div class="user-table-container">
       <div class="filter-container">
+        <input
+          type="text"
+          v-model="filters.search"
+          placeholder="🔍 Cari nama, jabatan, no hp..."
+          class="search-input"
+          @input="debounceSearch"
+        />
         <label for="status-filter">Status:</label>
         <select id="status-filter" v-model="statusFilter" @change="loadUsers" class="filter-select">
           <option value="active">Aktif</option>
@@ -109,10 +116,21 @@ const loading = ref(true)
 const users = ref([])
 const statusFilter = ref('active') // default: aktif
 const pagination = ref(null)
+let searchTimeout = null
 const filters = ref({
   page: 1,
   per_page: 15,
+  search: '',
 })
+
+// Debounce search
+const debounceSearch = () => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    filters.value.page = 1
+    loadUsers()
+  }, 300)
+}
 
 // Hak akses
 const canCreate = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag'))
@@ -339,5 +357,22 @@ onMounted(() => {
   font-weight: 500;
   display: inline-block;
   border: 1px solid #e0e0e0;
+}
+
+/* Search Input */
+.search-input {
+  flex: 1;
+  max-width: 300px;
+  padding: 10px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
 }
 </style>

@@ -9,10 +9,18 @@
       <div class="calendar-header">
         <div class="calendar-nav">
           <button class="nav-btn" @click="previousMonth">‹</button>
-          <h3 class="calendar-title">{{ monthNames[currentMonth] }} {{ currentYear }}</h3>
+          <button class="calendar-title-btn" @click="showMonthYearPicker = true">
+            {{ monthNames[currentMonth] }} {{ currentYear }}
+            <span class="picker-icon">📅</span>
+          </button>
           <button class="nav-btn" @click="nextMonth">›</button>
         </div>
-        <button class="nav-btn" @click="goToToday">Hari Ini</button>
+        <div class="calendar-actions">
+          <button class="nav-btn search-btn" @click="showMonthYearPicker = true" title="Cari Bulan & Tahun">
+            🔍
+          </button>
+          <button class="nav-btn" @click="goToToday">Hari Ini</button>
+        </div>
       </div>
 
       <div v-if="loading" class="loading-container">
@@ -615,6 +623,13 @@
                   </button>
                 </div>
 
+                <!-- Back Button -->
+                <div class="detail-actions" style="margin-top: 16px;">
+                  <button @click="closeDetailModal" class="btn btn-secondary">
+                    ← Kembali ke Daftar
+                  </button>
+                </div>
+
               </div>
             </div>
           </div>
@@ -705,6 +720,50 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- ========== MONTH/YEAR PICKER MODAL ========== -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showMonthYearPicker" class="picker-overlay" @click.self="showMonthYearPicker = false">
+          <div class="picker-modal">
+            <div class="picker-header">
+              <h3>📅 Pilih Bulan & Tahun</h3>
+              <button @click="showMonthYearPicker = false" class="close-picker-btn">✕</button>
+            </div>
+            <div class="picker-content">
+              <!-- Year Selector -->
+              <div class="year-selector">
+                <button @click="pickerYear--" class="year-nav-btn">‹</button>
+                <select v-model="pickerYear" class="year-select">
+                  <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
+                </select>
+                <button @click="pickerYear++" class="year-nav-btn">›</button>
+              </div>
+              
+              <!-- Month Grid -->
+              <div class="month-grid">
+                <button
+                  v-for="(month, index) in monthNames"
+                  :key="index"
+                  class="month-btn"
+                  :class="{ 
+                    'active': pickerMonth === index && pickerYear === currentYear,
+                    'selected': pickerMonth === index
+                  }"
+                  @click="pickerMonth = index"
+                >
+                  {{ month.substring(0, 3) }}
+                </button>
+              </div>
+            </div>
+            <div class="picker-actions">
+              <button @click="showMonthYearPicker = false" class="btn-picker-cancel">Batal</button>
+              <button @click="goToSelectedMonthYear" class="btn-picker-go">🚀 Pergi ke Bulan</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </AdminLayout>
 </template>
 
@@ -746,6 +805,29 @@ const getAgendaTypeIcon = (type) => {
 
 const currentYear = ref(new Date().getFullYear())
 const currentMonth = ref(new Date().getMonth())
+
+// Month/Year Picker state
+const showMonthYearPicker = ref(false)
+const pickerYear = ref(new Date().getFullYear())
+const pickerMonth = ref(new Date().getMonth())
+
+// Generate year options (10 years back and 5 years forward)
+const yearOptions = computed(() => {
+  const currentYr = new Date().getFullYear()
+  const years = []
+  for (let y = currentYr - 10; y <= currentYr + 5; y++) {
+    years.push(y)
+  }
+  return years
+})
+
+// Go to selected month/year
+const goToSelectedMonthYear = async () => {
+  currentYear.value = pickerYear.value
+  currentMonth.value = pickerMonth.value
+  showMonthYearPicker.value = false
+  await loadAgendas()
+}
 const monthNames = [
   'Januari',
   'Februari',
@@ -1619,6 +1701,222 @@ onMounted(async () => {
   font-size: 1.5rem;
   font-weight: 600;
   margin: 0;
+}
+
+/* Clickable Calendar Title Button */
+.calendar-title-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 1.3rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.calendar-title-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.02);
+}
+
+.picker-icon {
+  font-size: 1rem;
+}
+
+.calendar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.search-btn {
+  font-size: 1.1rem;
+}
+
+/* Month/Year Picker Modal */
+.picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10001;
+  padding: 20px;
+}
+
+.picker-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease;
+}
+
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.picker-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #1e293b;
+}
+
+.close-picker-btn {
+  background: #f3f4f6;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.close-picker-btn:hover {
+  background: #e5e7eb;
+  color: #1e293b;
+}
+
+.picker-content {
+  margin-bottom: 20px;
+}
+
+/* Year Selector */
+.year-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.year-nav-btn {
+  background: #f3f4f6;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.year-nav-btn:hover {
+  background: #e5e7eb;
+}
+
+.year-select {
+  padding: 10px 20px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  border: 2px solid #1e40af;
+  border-radius: 8px;
+  background: white;
+  color: #1e40af;
+  cursor: pointer;
+  text-align: center;
+  min-width: 120px;
+}
+
+.year-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.2);
+}
+
+/* Month Grid */
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.month-btn {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 12px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.month-btn:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+
+.month-btn.selected {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: white;
+}
+
+.month-btn.active {
+  box-shadow: 0 0 0 2px #fbbf24;
+}
+
+/* Picker Actions */
+.picker-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-picker-cancel {
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-picker-cancel:hover {
+  background: #f1f5f9;
+}
+
+.btn-picker-go {
+  padding: 10px 24px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-picker-go:hover {
+  background: linear-gradient(135deg, #2563eb, #1e3a8a);
+  transform: translateY(-1px);
 }
 
 .loading-container {

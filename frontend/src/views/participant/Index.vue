@@ -9,6 +9,17 @@
     </div>
 
     <div class="anouncement-table-container">
+      <!-- Search Box -->
+      <div class="search-box">
+        <input
+          type="text"
+          v-model="filters.search"
+          placeholder="🔍 Cari nama, email, organisasi..."
+          class="search-input"
+          @input="debounceSearch"
+        />
+      </div>
+
       <!-- Loader -->
       <LoadingSpinner v-if="loading" text="Memuat pengumuman..." />
 
@@ -87,10 +98,21 @@ const notificationStore = useNotificationStore()
 const loading = ref(true)
 const participants = ref([])
 const pagination = ref(null)
+let searchTimeout = null
 const filters = ref({
   page: 1,
   per_page: 15,
+  search: '',
 })
+
+// Debounce search
+const debounceSearch = () => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    filters.value.page = 1
+    loadParticipants()
+  }, 300)
+}
 
 // Hak akses
 const canCreate = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('admin'))
@@ -227,5 +249,26 @@ onMounted(() => {
 .btn-sm:hover {
   opacity: 0.8;
   transition: 0.2s;
+}
+
+/* Search Box */
+.search-box {
+  margin-bottom: 16px;
+}
+
+.search-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
 }
 </style>
