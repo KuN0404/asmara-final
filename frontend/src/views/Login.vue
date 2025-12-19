@@ -3,7 +3,6 @@
     <form @submit.prevent="handleLogin" class="login-form">
       <h2 class="form-title">Login</h2>
       <p class="form-subtitle">Masuk ke sistem agenda BPS</p>
-
       <div class="form-group">
         <label class="form-label">Username</label>
         <input
@@ -52,15 +51,42 @@ const form = ref({
 })
 
 const loading = ref(false)
+const errors = ref({})
+
+// const handleLogin = async () => {
+//   loading.value = true
+//   try {
+//     await authStore.login(form.value)
+//     notificationStore.success('Login berhasil!')
+//     router.push('/')
+//   } catch (error) {
+//     notificationStore.error(handleError(error))
+//   } finally {
+//     loading.value = false
+//   }
+// }
 
 const handleLogin = async () => {
   loading.value = true
+  errors.value = {}
   try {
-    await authStore.login(form.value)
-    notificationStore.success('Login berhasil!')
+    const response = await authStore.login(form.value)
+    notificationStore.success(response.message || 'Login berhasil!')
     router.push('/')
   } catch (error) {
-    notificationStore.error(handleError(error))
+    // Handle validation errors
+    if (error.errors) {
+      const errorMessage = Object.values(error.errors).flat().join(', ')
+      notificationStore.error(errorMessage)
+    }
+    // Handle general error message
+    else if (error.message) {
+      notificationStore.error(error.message)
+    }
+    // Fallback error
+    else {
+      notificationStore.error('Terjadi kesalahan saat login. Silakan coba lagi.')
+    }
   } finally {
     loading.value = false
   }
@@ -131,5 +157,14 @@ const handleLogin = async () => {
 .btn-login:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+.error-message {
+  color: #ef4444;
+  font-size: 0.875rem;
+  margin-top: 5px;
+}
+
+.form-input.error {
+  border-color: #ef4444;
 }
 </style>

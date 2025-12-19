@@ -22,8 +22,8 @@
         <div class="meta">
           <span>📅 {{ formatDateTime(announcement.created_at) }}</span>
           <span>👤 {{ announcement.creator?.name || 'Unknown' }}</span>
-          <span :class="announcement.is_displayed ? 'badge-active' : 'badge-inactive'">
-            {{ announcement.is_displayed ? '✅ Ditampilkan' : '❌ Tidak Ditampilkan' }}
+          <span :class="announcement.is_notification ? 'badge-active' : 'badge-inactive'">
+            {{ announcement.is_notification ? '✅ Notifikasi WA Terkirim' : '❌ Tanpa Notifikasi WA' }}
           </span>
         </div>
       </div>
@@ -85,7 +85,7 @@ const error = ref(null)
 const announcement = ref(null)
 const baseURL = import.meta.env.VITE_API_BASE_URL
 
-const canEdit = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('admin'))
+const canEdit = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag'))
 
 onMounted(async () => {
   try {

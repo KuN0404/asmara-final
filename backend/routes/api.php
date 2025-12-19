@@ -24,7 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/profile', [ProfileController::class, 'update']);
 
     // Users - Only Super Admin
-    Route::middleware('role:super_admin,admin')->group(function () {
+    Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
         Route::apiResource('users', UserController::class);
         Route::post('users', [UserController::class, 'store']);
         Route::put('users/{id}', [UserController::class, 'update']);
@@ -36,7 +36,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Rooms - All authenticated users can view, Super Admin & Admin can manage
     Route::get('rooms', [RoomController::class, 'index']);
     Route::get('rooms/{id}', [RoomController::class, 'show']);
-    Route::middleware('role:super_admin,admin')->group(function () {
+    Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
         Route::post('rooms', [RoomController::class, 'store']);
         Route::put('rooms/{id}', [RoomController::class, 'update']);
         Route::delete('rooms/{id}', [RoomController::class, 'destroy']);
@@ -45,7 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Participants - All authenticated users can view, Super Admin & Admin can manage
     Route::get('participants', [ParticipantController::class, 'index']);
     Route::get('participants/{id}', [ParticipantController::class, 'show']);
-    Route::middleware('role:super_admin,admin')->group(function () {
+    Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
         Route::post('participants', [ParticipantController::class, 'store']);
         Route::put('participants/{id}', [ParticipantController::class, 'update']);
         Route::delete('participants/{id}', [ParticipantController::class, 'destroy']);
@@ -54,25 +54,41 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Office Agenda routes
 Route::apiResource('office-agendas', OfficeAgendaController::class);
-Route::middleware('role:super_admin,admin')->group(function () {
+Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
     // Delete specific attachment
     Route::delete('office-agendas/{officeAgenda}/attachments', [OfficeAgendaController::class, 'deleteAttachment']);
 });
+// Approval routes - hanya kepala dan super_admin
+Route::middleware('role:super_admin,kepala')->group(function () {
+    Route::post('office-agendas/{id}/approve', [OfficeAgendaController::class, 'approve']);
+    Route::post('office-agendas/{id}/reject', [OfficeAgendaController::class, 'reject']);
+});
 
     // My Agendas - All authenticated users
+    // Route::apiResource('my-agendas', MyAgendaController::class);
+    // Route::get('public-agendas', [MyAgendaController::class, 'publicAgendas']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    // My Agendas
     Route::apiResource('my-agendas', MyAgendaController::class);
+    Route::post('my-agendas/{id}/restore', [MyAgendaController::class, 'restore']);
     Route::get('public-agendas', [MyAgendaController::class, 'publicAgendas']);
+
+    // Office Agendas
+    Route::apiResource('office-agendas', OfficeAgendaController::class);
+});
+
 
     // Announcements - Super Admin & Admin can manage, all can view
     Route::get('announcements', [AnnouncementController::class, 'index']);
     Route::get('announcements/{id}', [AnnouncementController::class, 'show']);
-    Route::middleware('role:super_admin,admin')->group(function () {
+    Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
         Route::post('announcements', [AnnouncementController::class, 'store']);
         Route::put('announcements/{id}', [AnnouncementController::class, 'update']);
         Route::delete('announcements/{id}', [AnnouncementController::class, 'destroy']);
     });
 
-    Route::middleware('role:super_admin,admin')->group(function () {
+    Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
         Route::get('whatsapp/status', [WhatsAppController::class, 'status']);
         Route::get('whatsapp/logs', [WhatsAppController::class, 'logs']);
         Route::post('whatsapp/send-test', [WhatsAppController::class, 'sendTest']);

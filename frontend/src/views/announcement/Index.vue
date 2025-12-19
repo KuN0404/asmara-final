@@ -91,7 +91,7 @@ const filters = ref({
 })
 
 // Hak akses
-const canCreate = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('admin'))
+const canCreate = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag'))
 const canEdit = computed(() => canCreate.value)
 const canDelete = computed(() => canCreate.value)
 

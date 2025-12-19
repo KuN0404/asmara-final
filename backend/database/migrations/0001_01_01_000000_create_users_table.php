@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('whatsapp_number');
             $table->text('address')->nullable();
             $table->text('photo')->nullable();
+            $table->enum('position', ['pns', 'pppk']);
             $table->rememberToken();
             $table->softDeletes();
             $table->timestamps();

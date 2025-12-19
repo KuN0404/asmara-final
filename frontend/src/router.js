@@ -18,7 +18,7 @@ const routes = [
     path: '/office-agenda',
     name: 'OfficeAgendaIndex',
     component: () => import('@/views/office-agenda/Index.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin', 'staff'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag', 'staff'] },
   },
   // {
   //   path: '/office-agenda/create',
@@ -72,19 +72,19 @@ const routes = [
     path: '/announcements/create',
     name: 'AnnouncementCreate',
     component: () => import('@/views/announcement/Create.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
   {
     path: '/announcements/:id/edit',
     name: 'AnnouncementEdit',
     component: () => import('@/views/announcement/Edit.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
   {
     path: '/users',
     name: 'UserIndex',
     component: () => import('@/views/user/Index.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
   {
     path: '/users/:id',
@@ -96,13 +96,13 @@ const routes = [
     path: '/users/create',
     name: 'UserCreate',
     component: () => import('@/views/user/Create.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
   {
     path: '/users/:id/edit',
     name: 'UserEdit',
     component: () => import('@/views/user/Edit.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
   {
     path: '/rooms',
@@ -120,13 +120,13 @@ const routes = [
     path: '/rooms/create',
     name: 'RoomCreate',
     component: () => import('@/views/room/Create.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
   {
     path: '/rooms/:id/edit',
     name: 'RoomEdit',
     component: () => import('@/views/room/Edit.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
   {
     path: '/participants',
@@ -144,13 +144,13 @@ const routes = [
     path: '/participants/create',
     name: 'ParticipantCreate',
     component: () => import('@/views/participant/Create.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
   {
     path: '/participants/:id/edit',
     name: 'ParticipantEdit',
     component: () => import('@/views/participant/Edit.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
   {
     path: '/profile',
@@ -162,23 +162,34 @@ const routes = [
     path: '/whatsapp',
     name: 'WhatsAppManagement',
     component: () => import('@/views/WhatsAppManagement.vue'),
-    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'admin'] },
+    meta: { requiresAuth: true, layout: 'admin', roles: ['super_admin', 'kepala', 'ketua_tim', 'kasubbag'] },
   },
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory('/asmara/'),
   routes,
 })
 
-router.beforeEach((to, from, next) => {
+// Flag to track if initial auth check is done
+let isAuthChecked = false
+
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
+  // Jika ada token tapi user belum diload, panggil checkAuth dulu
+  if (authStore.token && !authStore.user && !isAuthChecked) {
+    await authStore.checkAuth()
+    isAuthChecked = true
+  }
+
+  // Cek autentikasi
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
   } else if (to.path === '/login' && authStore.isAuthenticated) {
     next('/')
   } else if (to.meta.roles && !to.meta.roles.some((role) => authStore.hasRole(role))) {
+    // Role check - hanya redirect jika user sudah diload
     next('/')
   } else {
     next()
@@ -186,3 +197,4 @@ router.beforeEach((to, from, next) => {
 })
 
 export default router
+

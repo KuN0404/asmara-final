@@ -10,6 +10,9 @@ const api = axios.create({
   },
 })
 
+// Flag to prevent infinite logout loop
+let isLoggingOut = false
+
 api.interceptors.request.use(
   (config) => {
     const authStore = useAuthStore()
@@ -24,9 +27,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Skip handling for logout endpoint or if already logging out
+    const isLogoutRequest = error.config?.url?.includes('/logout')
+    
+    if (error.response?.status === 401 && !isLoggingOut && !isLogoutRequest) {
+      isLoggingOut = true
       const authStore = useAuthStore()
-      authStore.logout()
+      authStore.logout().finally(() => {
+        isLoggingOut = false
+      })
       router.push('/login')
     }
     return Promise.reject(error)
@@ -34,3 +43,4 @@ api.interceptors.response.use(
 )
 
 export default api
+

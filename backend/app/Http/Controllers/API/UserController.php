@@ -24,6 +24,10 @@ class UserController extends Controller
     public function index(Request $request)
 {
     $users = User::with('roles')
+        // Exclude super_admin users from listing
+        ->whereDoesntHave('roles', function ($q) {
+            $q->where('name', 'super_admin');
+        })
         ->when($request->role, function ($q) use ($request) {
             $q->role($request->role);
         })
@@ -52,7 +56,8 @@ class UserController extends Controller
             'whatsapp_number' => 'required|string',
             'address' => 'nullable|string',
             'photo' => 'nullable|image|max:2048',
-            'role' => 'required|in:admin,staff',
+            'position' => 'required|in:pns,pppk',
+            'role' => 'required|in:kepala,ketua_tim,kasubbag,staff',
         ]);
 
         if ($request->hasFile('photo')) {
@@ -84,7 +89,8 @@ public function update(Request $request, $id)
         'email' => 'required|email|unique:users,email,' . $id,
         'whatsapp_number' => 'required|string',
         'address' => 'nullable|string',
-        'role' => 'required|in:admin,staff',
+        'position' => 'required|in:pns,pppk',
+        'role' => 'required|in:kepala,ketua_tim,kasubbag,staff',
         'password' => 'nullable|string|min:8',
         'photo' => 'nullable|image|max:2048',
     ]);

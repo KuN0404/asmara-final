@@ -22,6 +22,12 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = userData
   }
 
+  const clearAuth = () => {
+    token.value = null
+    user.value = null
+    localStorage.removeItem('token')
+  }
+
   const login = async (credentials) => {
     try {
       const data = await authService.login(credentials)
@@ -34,25 +40,34 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const logout = async () => {
-    try {
-      await authService.logout()
-    } catch (error) {
-      console.error('Logout error:', error)
-    } finally {
-      token.value = null
-      user.value = null
-      localStorage.removeItem('token')
+    // Store current token before clearing
+    const currentToken = token.value
+    
+    // Clear local state FIRST to prevent infinite loops
+    clearAuth()
+    
+    // Only call API logout if we had a token
+    if (currentToken) {
+      try {
+        await authService.logout()
+      } catch (error) {
+        // Ignore logout errors - we've already cleared local state
+        console.warn('Logout API failed (token may have expired):', error.message)
+      }
     }
   }
 
   const checkAuth = async () => {
-    if (!token.value) return
+    if (!token.value) return false
 
     try {
       const data = await authService.me()
       setUser(data.user)
+      return true
     } catch (error) {
-      logout()
+      // Token is invalid, clear auth state
+      clearAuth()
+      return false
     }
   }
 
@@ -66,3 +81,4 @@ export const useAuthStore = defineStore('auth', () => {
     checkAuth,
   }
 })
+

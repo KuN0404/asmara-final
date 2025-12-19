@@ -8,7 +8,9 @@ export const AGENDA_STATUS = {
 
 export const USER_ROLES = {
   SUPER_ADMIN: 'super_admin',
-  ADMIN: 'admin',
+  KEPALA: 'kepala',
+  KETUA_TIM: 'ketua_tim',
+  KASUBBAG: 'kasubbag',
   STAFF: 'staff',
 }
 

@@ -193,7 +193,9 @@ const photoPreview = computed(() => {
 const getRoleName = (role) => {
   const roles = {
     super_admin: 'Super Admin',
-    admin: 'Admin',
+    kepala: 'Kepala',
+    ketua_tim: 'Ketua Tim',
+    kasubbag: 'Kasubbag',
     staff: 'Staff',
   }
   return roles[role] || role || '-'

@@ -2,8 +2,12 @@ import api from './api'
 
 export default {
   async login(credentials) {
-    const response = await api.post('/login', credentials)
-    return response.data
+    try {
+      const response = await api.post('/login', credentials)
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error
+    }
   },
 
   async logout() {

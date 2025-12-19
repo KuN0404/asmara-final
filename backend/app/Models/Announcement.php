@@ -14,12 +14,12 @@ class Announcement extends Model
     protected $fillable = [
         'title',
         'content',
-        'is_displayed',
+        'is_notification',
         'created_by',
     ];
 
     protected $casts = [
-        'is_displayed' => 'boolean',
+        'is_notification' => 'boolean',
     ];
 
     public function attachments()

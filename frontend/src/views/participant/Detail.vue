@@ -57,7 +57,7 @@ const error = ref(null)
 const participant = ref(null)
 const baseURL = import.meta.env.VITE_API_BASE_URL
 
-const canEdit = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('admin'))
+const canEdit = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag'))
 
 onMounted(async () => {
   try {

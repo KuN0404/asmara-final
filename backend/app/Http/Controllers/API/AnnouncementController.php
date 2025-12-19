@@ -16,7 +16,7 @@ class AnnouncementController extends Controller
     public function index(Request $request)
     {
         $announcements = Announcement::with(['attachments', 'creator'])
-            ->when($request->is_displayed !== null, fn($q) => $q->where('is_displayed', $request->is_displayed))
+            ->when($request->is_notification !== null, fn($q) => $q->where('is_notification', $request->is_notification))
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 15);
 
@@ -95,7 +95,7 @@ public function store(Request $request)
     $validated = $request->validate([
         'title' => 'required|string',
         'content' => 'required|string',
-        'is_displayed' => 'boolean',
+        'is_notification' => 'boolean',
         'attachments' => 'nullable|array',
         'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:10240',
     ]);
@@ -106,7 +106,7 @@ public function store(Request $request)
         $announcement = Announcement::create([
             'title' => $validated['title'],
             'content' => $validated['content'],
-            'is_displayed' => $validated['is_displayed'] ?? true,
+            'is_notification' => $validated['is_notification'] ?? false,
             'created_by' => auth()->id(),
         ]);
 
@@ -126,57 +126,59 @@ public function store(Request $request)
             $announcement->attachments()->attach($attachmentIds);
         }
 
-        // Send WhatsApp - HANYA 1X
-        $users = User::whereNotNull('whatsapp_number')->get();
-        foreach ($users as $user) {
+        // Send WhatsApp - HANYA jika is_notification = true
+        if ($announcement->is_notification) {
+            $users = User::whereNotNull('whatsapp_number')->get();
+            foreach ($users as $user) {
 
-            // --- CLEAN HTML QUILL → WA FRIENDLY ---
-            // ubah <br> jadi newline
-            $cleanContent = preg_replace('/<br\s*\/?>/i', "\n", $announcement->content);
+                // --- CLEAN HTML QUILL → WA FRIENDLY ---
+                // ubah <br> jadi newline
+                $cleanContent = preg_replace('/<br\s*\/?>/i', "\n", $announcement->content);
 
-// hapus semua tag HTML lain
-$cleanContent = strip_tags($cleanContent);
+                // hapus semua tag HTML lain
+                $cleanContent = strip_tags($cleanContent);
 
-// konversi bold
-$cleanContent = str_replace(['<strong>', '<b>'], '*', $cleanContent);
-        $cleanContent = str_replace(['</strong>', '</b>'], '*', $cleanContent);
+                // konversi bold
+                $cleanContent = str_replace(['<strong>', '<b>'], '*', $cleanContent);
+                $cleanContent = str_replace(['</strong>', '</b>'], '*', $cleanContent);
 
-// konversi italic
-$cleanContent = str_replace(['<em>', '<i>'], '_', $cleanContent);
-        $cleanContent = str_replace(['</em>', '</i>'], '_', $cleanContent);
+                // konversi italic
+                $cleanContent = str_replace(['<em>', '<i>'], '_', $cleanContent);
+                $cleanContent = str_replace(['</em>', '</i>'], '_', $cleanContent);
 
-// rapikan newline berlebihan
-$cleanContent = preg_replace('/\n{3,}/', "\n\n", $cleanContent);
+                // rapikan newline berlebihan
+                $cleanContent = preg_replace('/\n{3,}/', "\n\n", $cleanContent);
 
-// trim whitespace
-$cleanContent = trim($cleanContent);
-// --- END CLEAN ---
+                // trim whitespace
+                $cleanContent = trim($cleanContent);
+                // --- END CLEAN ---
 
-$message = "📢 *PENGUMUMAN BARU*\n\n" .
-"📌 *{$announcement->title}*\n\n" .
-"{$cleanContent}\n\n" .
-"_Pengumuman dari: " . auth()->user()->name . "_";
+                $message = "📢 *PENGUMUMAN BARU*\n\n" .
+                    "📌 *{$announcement->title}*\n\n" .
+                    "{$cleanContent}\n\n" .
+                    "_Pengumuman dari: " . auth()->user()->name . "_";
 
-SendWhatsAppNotification::dispatch(
-$user->whatsapp_number,
-$message,
-'announcement',
-'created',
-$announcement->id
-);
-}
+                SendWhatsAppNotification::dispatch(
+                    $user->whatsapp_number,
+                    $message,
+                    'announcement',
+                    'created',
+                    $announcement->id
+                );
+            }
+        }
 
-DB::commit();
+        DB::commit();
 
-return response()->json([
-'message' => 'Pengumuman berhasil dibuat',
-'announcement' => $announcement->load('attachments'),
-], 201);
+        return response()->json([
+            'message' => 'Pengumuman berhasil dibuat',
+            'announcement' => $announcement->load('attachments'),
+        ], 201);
 
-} catch (\Exception $e) {
-DB::rollBack();
-return response()->json(['message' => $e->getMessage()], 500);
-}
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json(['message' => $e->getMessage()], 500);
+    }
 }
 
 
@@ -231,7 +233,7 @@ $announcement = Announcement::findOrFail($id);
 $validated = $request->validate([
 'title' => 'sometimes|string',
 'content' => 'sometimes|string',
-'is_displayed' => 'boolean',
+'is_notification' => 'boolean',
 'attachments' => 'nullable|array',
 'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:10240',
 'keep_attachment_ids' => 'nullable|array',
@@ -242,7 +244,7 @@ $validated = $request->validate([
 $announcement->update([
 'title' => $validated['title'] ?? $announcement->title,
 'content' => $validated['content'] ?? $announcement->content,
-'is_displayed' => $validated['is_displayed'] ?? $announcement->is_displayed,
+'is_notification' => $validated['is_notification'] ?? $announcement->is_notification,
 ]);
 
 // Ambil ID attachment yang akan dipertahankan

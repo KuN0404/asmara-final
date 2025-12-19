@@ -161,17 +161,6 @@
                   </div>
                 </div>
 
-                <!-- <div class="form-group">
-                  <label class="form-label">Status *</label>
-                  <select class="form-select" v-model="form.status" required>
-                    <option value="comming_soon">Akan Datang</option>
-                    <option value="in_progress">Sedang Berlangsung</option>
-                    <option value="schedule_change">Perubahan Jadwal</option>
-                    <option value="completed">Selesai</option>
-                    <option value="cancelled">Dibatalkan</option>
-                  </select>
-                </div> -->
-
                 <div class="form-group">
                   <label class="form-label">Deskripsi</label>
                   <textarea
@@ -240,12 +229,12 @@
                     selectedAgenda.created_by === authStore.user?.id
                   "
                 >
-                  <button
+                  <!-- <button
                     @click="changeStatus(selectedAgenda, 'schedule_change')"
                     class="btn-status btn-status-reschedule"
                   >
                     📅 Ganti Jadwal
-                  </button>
+                  </button> -->
                   <button
                     @click="changeStatus(selectedAgenda, 'cancelled')"
                     class="btn-status btn-status-cancel"
@@ -293,11 +282,33 @@
                 </div>
               </div>
 
-              <div class="form-actions" v-if="selectedAgenda && canEditOrDelete(selectedAgenda)">
-                <!-- <button @click="deleteAgenda(selectedAgenda)" class="btn btn-delete">
+              <!-- <div class="form-actions" v-if="selectedAgenda && canEditOrDelete(selectedAgenda)"> -->
+              <!-- <button @click="deleteAgenda(selectedAgenda)" class="btn btn-delete">
                   🗑️ Hapus
                 </button> -->
-                <button @click="editAgenda(selectedAgenda)" class="btn btn-primary">✏️ Ubah</button>
+              <!-- <button @click="editAgenda(selectedAgenda)" class="btn btn-primary">✏️ Ubah</button> -->
+              <!-- </div> -->
+
+              <div
+                class="status-actions"
+                v-if="
+                  selectedAgenda &&
+                  canChangeStatus(selectedAgenda) &&
+                  selectedAgenda.created_by === authStore.user?.id
+                "
+              >
+                <button
+                  @click="changeStatus(selectedAgenda, 'schedule_change')"
+                  class="btn-status btn-status-reschedule"
+                >
+                  📅 Ganti Jadwal
+                </button>
+                <button
+                  @click="changeStatus(selectedAgenda, 'cancelled')"
+                  class="btn-status btn-status-cancel"
+                >
+                  ❌ Batalkan
+                </button>
               </div>
             </div>
           </div>
@@ -368,57 +379,22 @@ const form = ref({
   is_show_to_other: false,
 })
 
-// Auto-calculate status based on date
-const calculateStatus = (startDate, endDate) => {
-  const now = new Date()
-  now.setHours(0, 0, 0, 0) // Reset ke awal hari
-
-  const start = new Date(startDate)
-  start.setHours(0, 0, 0, 0)
-
-  const end = new Date(endDate)
-  end.setHours(23, 59, 59, 999)
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  // Jika tanggal mulai = hari ini, status berlangsung
-  if (start.getTime() === today.getTime()) {
-    return 'in_progress'
-  }
-
-  // Jika tanggal mulai sudah lewat tapi belum selesai
-  if (now >= start && now <= end) {
-    return 'in_progress'
-  }
-
-  // Jika belum dimulai
-  if (now < start) {
-    return 'comming_soon'
-  }
-
-  // Jika sudah selesai
-  return 'completed'
-}
-
-// Check if status can be changed manually
 const canChangeStatus = (agenda) => {
-  return ['comming_soon', 'in_progress'].includes(agenda.status)
+  // Hanya bisa ganti jadwal/batalkan jika status comming_soon
+  return agenda.status === 'comming_soon'
 }
 
 // Check if user can edit or delete agenda
 const canEditOrDelete = (agenda) => {
   if (!agenda) return false
 
-  // Cek apakah user adalah pembuat agenda
   const isOwner = agenda.created_by === authStore.user?.id
 
-  // Cek status - tidak bisa edit/hapus jika cancelled atau completed
-  const canModify = !['cancelled', 'completed', 'schedule_change'].includes(agenda.status)
+  // Hanya bisa edit/delete jika status comming_soon
+  const canModify = agenda.status === 'comming_soon'
 
   return isOwner && canModify
 }
-
 // Get minimum date (today)
 const getMinDate = () => {
   const today = new Date()
@@ -430,30 +406,24 @@ const getMinDate = () => {
 
 // Change status manually
 const changeStatus = async (agenda, newStatus) => {
-  const confirmMessages = {
-    schedule_change: 'Apakah Anda yakin ingin mengganti jadwal agenda ini?',
-    cancelled: 'Apakah Anda yakin ingin membatalkan agenda ini?',
-  }
+  if (newStatus === 'cancelled') {
+    if (!confirm('Apakah Anda yakin ingin membatalkan agenda ini?')) return
 
-  if (!confirm(confirmMessages[newStatus])) return
-
-  try {
-    const updateData = { status: newStatus }
-    await myAgendaService.update(agenda.id, updateData)
-
-    const successMessages = {
-      schedule_change: 'Jadwal agenda berhasil diganti',
-      cancelled: 'Agenda berhasil dibatalkan',
+    try {
+      // Soft delete via destroy endpoint
+      await myAgendaService.delete(agenda.id)
+      notificationStore.success('Agenda berhasil dibatalkan')
+      showDetailModal.value = false
+      await loadAgendas()
+    } catch (error) {
+      notificationStore.error(error.response?.data?.message || 'Terjadi kesalahan')
     }
-
-    notificationStore.success(successMessages[newStatus])
+  } else if (newStatus === 'schedule_change') {
+    // Arahkan ke form edit
     showDetailModal.value = false
-    await loadAgendas()
-  } catch (error) {
-    notificationStore.error(error.response?.data?.message || 'Terjadi kesalahan')
+    editAgenda(agenda)
   }
 }
-
 // Format date untuk timezone Jakarta
 const formatDateLocal = (date) => {
   const year = date.getFullYear()
@@ -615,7 +585,6 @@ const editAgenda = (agenda) => {
     title: agenda.title,
     start_at: startDate.toISOString().substring(0, 16),
     until_at: untilDate.toISOString().substring(0, 16),
-    status: agenda.status,
     description: agenda.description || '',
     is_show_to_other: agenda.is_show_to_other || false,
   }
@@ -661,7 +630,6 @@ const resetForm = () => {
     title: '',
     start_at: '',
     until_at: '',
-    status: 'comming_soon',
     description: '',
     is_show_to_other: false,
   }
@@ -680,7 +648,6 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     // Auto-set status berdasarkan tanggal
-    form.value.status = calculateStatus(form.value.start_at, form.value.until_at)
 
     if (editMode.value) {
       await myAgendaService.update(selectedAgenda.value.id, form.value)
@@ -697,19 +664,6 @@ const handleSubmit = async () => {
     submitting.value = false
   }
 }
-
-// const deleteAgenda = async (agenda) => {
-//   if (!confirm(`Apakah Anda yakin ingin menghapus agenda "${agenda.title}"?`)) return
-
-//   try {
-//     await myAgendaService.delete(agenda.id)
-//     notificationStore.success('Agenda berhasil dihapus')
-//     showDetailModal.value = false
-//     await loadAgendas()
-//   } catch (error) {
-//     notificationStore.error(error.response?.data?.message || 'Terjadi kesalahan')
-//   }
-// }
 
 const loadAgendas = async () => {
   loading.value = true
@@ -737,21 +691,6 @@ const loadAgendas = async () => {
       const agendaDate = new Date(agenda.start_at)
       return agendaDate >= startDate && agendaDate <= endDate
     })
-
-    // Auto-update status agenda yang outdated
-    for (const agenda of agendasData) {
-      if (['comming_soon', 'in_progress'].includes(agenda.status)) {
-        const calculatedStatus = calculateStatus(agenda.start_at, agenda.until_at)
-        if (calculatedStatus !== agenda.status) {
-          try {
-            await myAgendaService.update(agenda.id, { status: calculatedStatus })
-            agenda.status = calculatedStatus
-          } catch (error) {
-            // Silent fail
-          }
-        }
-      }
-    }
 
     agendas.value = agendasData
   } catch (error) {

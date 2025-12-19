@@ -19,21 +19,46 @@ class UserSeeder extends Seeder
             'name' => 'Super Admin',
             'email' => 'superadmin@example.com',
             'password' => bcrypt('password'),
-            'whatsapp_number' => '081234567890',
+            'whatsapp_number' => '081111111111',
             'address' => 'Bandar Lampung',
         ]);
         $superAdminUser->assignRole('super_admin');
 
-        // ✅ Admin
-        $adminUser = User::create([
-            'username' => 'admin',
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
+        // ✅ Kepala
+        $kepalaUser = User::create([
+            'username' => 'kepala',
+            'name' => 'Kepala User',
+            'email' => 'kepala@example.com',
             'password' => bcrypt('password'),
-            'whatsapp_number' => '081234567891',
+            'whatsapp_number' => '0812321111',
             'address' => 'Bandar Lampung',
+            'position' => 'pns',
         ]);
-        $adminUser->assignRole('admin');
+        $kepalaUser->assignRole('kepala');
+
+        // ✅ Ketua Tim
+        $ketuaTimUser = User::create([
+            'username' => 'ketuatim',
+            'name' => 'Ketua Tim User',
+            'email' => 'ketuatim@example.com',
+            'password' => bcrypt('password'),
+            'whatsapp_number' => '08111111',
+            'address' => 'Bandar Lampung',
+            'position' => 'pns',
+        ]);
+        $ketuaTimUser->assignRole('ketua_tim');
+
+        // ✅ Kasubbag
+        $kasubbagUser = User::create([
+            'username' => 'kasubbag',
+            'name' => 'Kasubbag User',
+            'email' => 'kasubbag@example.com',
+            'password' => bcrypt('password'),
+            'whatsapp_number' => '082377425934',
+            'address' => 'Bandar Lampung',
+            'position' => 'pns',
+        ]);
+        $kasubbagUser->assignRole('kasubbag');
 
         // ✅ Staff
         $staffUser = User::create([
@@ -41,24 +66,25 @@ class UserSeeder extends Seeder
             'name' => 'Staff User',
             'email' => 'staff@example.com',
             'password' => bcrypt('password'),
-            'whatsapp_number' => '081234567892',
+            'whatsapp_number' => '08111111',
             'address' => 'Bandar Lampung',
+            'position' => 'pppk',
         ]);
         $staffUser->assignRole('staff');
 
         // ✅ Tambah 20 user random
-        for ($i = 1; $i <= 20; $i++) {
-            $user = User::create([
-                'username' => 'user' . $i,
-                'name' => $faker->name,
-                'email' => 'user' . $i . '@example.com',
-                'password' => bcrypt('password'),
-                'whatsapp_number' => '08' . $faker->numerify('##########'),
-                'address' => $faker->city,
-            ]);
+        // for ($i = 1; $i <= 2; $i++) {
+        //     $user = User::create([
+        //         'username' => 'user' . $i,
+        //         'name' => $faker->name,
+        //         'email' => 'user' . $i . '@example.com',
+        //         'password' => bcrypt('password'),
+        //         'whatsapp_number' => '08' . $faker->numerify('##########'),
+        //         'address' => $faker->city,
+        //     ]);
 
-            // Bisa kasih role default misal "staff"
-            $user->assignRole('staff');
-        }
+        //     // Bisa kasih role default misal "staff"
+        //     $user->assignRole('staff');
+        // }
     }
 }

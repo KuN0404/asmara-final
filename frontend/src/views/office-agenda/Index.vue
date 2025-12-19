@@ -90,11 +90,9 @@
                     <span class="meta-item">
                       {{ getAgendaTypeIcon(agenda.agenda_type) }} {{ agenda.agenda_type }}
                     </span>
+                    <span class="meta-item">🌐 {{ agenda.activity_type }}</span>
                     <span class="meta-item">📍 {{ agenda.location }}</span>
                   </div>
-                  <p v-if="agenda.description" class="agenda-list-desc">
-                    {{ agenda.description }}
-                  </p>
                 </div>
               </div>
               <div class="form-actions">
@@ -175,17 +173,6 @@
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <label class="form-label">Lokasi *</label>
-                  <input
-                    type="text"
-                    class="form-input"
-                    v-model="form.location"
-                    placeholder="Masukkan lokasi"
-                    required
-                  />
-                </div>
-
                 <div
                   class="form-group"
                   v-if="form.activity_type === 'offline' || form.activity_type === 'hybrid'"
@@ -196,13 +183,29 @@
                   <select
                     class="form-select"
                     v-model="form.room_id"
-                    :required="form.activity_type === 'offline'"
+                    :required="form.activity_type === 'offline' && form.room_id !== 'other'"
                   >
                     <option value="">Pilih Ruangan</option>
                     <option v-for="room in rooms" :key="room.id" :value="room.id">
                       {{ room.name }} - {{ room.capacity }} orang
                     </option>
+                    <option value="other">🏢 Lainnya (Lokasi Manual)</option>
                   </select>
+                </div>
+
+                <!-- Lokasi Manual - hanya muncul jika pilih "Lainnya" -->
+                <div
+                  class="form-group"
+                  v-if="(form.activity_type === 'offline' || form.activity_type === 'hybrid') && form.room_id === 'other'"
+                >
+                  <label class="form-label">Lokasi Manual *</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    v-model="form.location"
+                    placeholder="Masukkan nama lokasi (contoh: Aula Gedung A, Hotel Grand Lampung)"
+                    required
+                  />
                 </div>
 
                 <div
@@ -235,13 +238,31 @@
                 <div class="form-group">
                   <div class="participant-header">
                     <label class="form-label">Peserta Internal (Wajib) *</label>
-                    <button
-                      type="button"
-                      @click="selectAllInternalParticipants"
-                      class="btn-select-all"
-                    >
-                      {{ allInternalSelected ? '✓ Semua Dipilih' : '☐ Pilih Semua' }}
-                    </button>
+                    <div class="participant-header-buttons">
+                      <button
+                        type="button"
+                        @click="selectByPosition('pns')"
+                        class="btn-select-position btn-pns"
+                        :class="{ active: allPnsSelected }"
+                      >
+                        {{ allPnsSelected ? '✓ PNS' : '☐ PNS' }}
+                      </button>
+                      <button
+                        type="button"
+                        @click="selectByPosition('pppk')"
+                        class="btn-select-position btn-pppk"
+                        :class="{ active: allPppkSelected }"
+                      >
+                        {{ allPppkSelected ? '✓ PPPK' : '☐ PPPK' }}
+                      </button>
+                      <button
+                        type="button"
+                        @click="selectAllInternalParticipants"
+                        class="btn-select-all"
+                      >
+                        {{ allInternalSelected ? '✓ Semua' : '☐ Semua' }}
+                      </button>
+                    </div>
                   </div>
                   <div class="participant-grid">
                     <label
@@ -252,7 +273,12 @@
                     >
                       <input type="checkbox" :value="user.id" v-model="form.user_participant_ids" />
                       <div class="participant-info">
-                        <span class="participant-name">{{ user.name }}</span>
+                        <div class="participant-name-row">
+                          <span class="participant-name">{{ user.name }}</span>
+                          <span v-if="user.position" class="position-badge" :class="user.position">
+                            {{ user.position?.toUpperCase() }}
+                          </span>
+                        </div>
                         <span class="participant-email">{{ user.email }}</span>
                       </div>
                     </label>
@@ -285,24 +311,48 @@
                   </div>
                 </div>
 
-                <!-- Lampiran Multi File -->
+                <!-- Lampiran / Arsip -->
                 <div class="form-group">
-                  <label class="form-label">Lampiran (Dokumen)</label>
-                  <div class="file-upload-area">
-                    <input
-                      type="file"
-                      ref="fileInput"
-                      class="file-input-hidden"
-                      @change="handleFileUpload"
-                      multiple
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
-                    />
-                    <button type="button" @click="$refs.fileInput.click()" class="btn-upload">
-                      📎 Pilih File
+                  <label class="form-label">Arsip / Lampiran</label>
+                  
+                  <!-- Link Arsip (Primary) -->
+                  <div class="attachment-links-section">
+                    <div class="link-input-row" v-for="(link, index) in form.attachment_links" :key="index">
+                      <input
+                        type="url"
+                        class="form-input"
+                        v-model="form.attachment_links[index]"
+                        placeholder="https://drive.google.com/... atau link dokumen lainnya"
+                      />
+                      <button type="button" @click="removeAttachmentLink(index)" class="btn-remove-link">✕</button>
+                    </div>
+                    <button type="button" @click="addAttachmentLink" class="btn-add-link">
+                      🔗 Tambah Link Arsip
                     </button>
-                    <span class="upload-hint"
-                      >Maks 10MB per file. Format: PDF, DOC, XLS, PPT, JPG, PNG</span
-                    >
+                  </div>
+                  
+                  <!-- File Upload (Optional) -->
+                  <div class="file-upload-section">
+                    <div class="file-upload-toggle">
+                      <button type="button" @click="showFileUpload = !showFileUpload" class="btn-toggle-upload">
+                        {{ showFileUpload ? '📁 Sembunyikan Upload File' : '📎 Upload File (Opsional)' }}
+                      </button>
+                    </div>
+                    
+                    <div v-if="showFileUpload" class="file-upload-area">
+                      <input
+                        type="file"
+                        ref="fileInput"
+                        class="file-input-hidden"
+                        @change="handleFileUpload"
+                        multiple
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                      />
+                      <button type="button" @click="$refs.fileInput.click()" class="btn-upload">
+                        📎 Pilih File
+                      </button>
+                      <span class="upload-hint">Maks 2.5MB per file. Format: PDF, DOC, XLS, PPT, JPG, PNG</span>
+                    </div>
                   </div>
 
                   <!-- Preview File yang Akan Diupload -->
@@ -380,37 +430,20 @@
             </div>
             <div class="modal-body">
               <div v-if="selectedAgenda" class="detail-container">
-                <div
-                  class="status-actions"
-                  v-if="canChangeStatus(selectedAgenda) && canEditOrDelete(selectedAgenda)"
-                >
-                  <button
-                    @click="changeStatus(selectedAgenda, 'schedule_change')"
-                    class="btn-status btn-status-reschedule"
-                  >
-                    📅 Ganti Jadwal
-                  </button>
-                  <button
-                    @click="changeStatus(selectedAgenda, 'cancelled')"
-                    class="btn-status btn-status-cancel"
-                  >
-                    ❌ Batalkan
-                  </button>
+                <!-- Status Badge at top -->
+                <div class="detail-status-header">
+                  <span :class="getStatusClass(selectedAgenda.status)">
+                    {{ getStatusText(selectedAgenda.status) }}
+                  </span>
+                  <span v-if="!selectedAgenda.is_approved && selectedAgenda.status === 'pending'" class="approval-badge">
+                    🕐 Menunggu Persetujuan Kepala
+                  </span>
                 </div>
 
                 <div class="detail-grid">
                   <div class="detail-item">
                     <label class="detail-label">Judul:</label>
                     <div class="detail-value">{{ selectedAgenda.title }}</div>
-                  </div>
-
-                  <div class="detail-item">
-                    <label class="detail-label">Status:</label>
-                    <div class="detail-value">
-                      <span :class="getStatusClass(selectedAgenda.status)">
-                        {{ getStatusText(selectedAgenda.status) }}
-                      </span>
-                    </div>
                   </div>
 
                   <div class="detail-item">
@@ -460,24 +493,6 @@
                     <div class="detail-value">{{ selectedAgenda.description }}</div>
                   </div>
 
-                  <!-- <div
-                    class="detail-item full-width"
-                    v-if="selectedAgenda.userParticipants?.length > 0"
-                  >
-                    <label class="detail-label">Peserta Internal:</label>
-                    <div class="detail-value">
-                      <div class="participant-list">
-                        <span
-                          v-for="u in selectedAgenda.userParticipants"
-                          :key="u.id"
-                          class="participant-tag participant-internal"
-                        >
-                          {{ u.name }} - {{ u.email }}
-                        </span>
-                      </div>
-                    </div>
-                  </div> -->
-
                   <div
                     class="detail-item full-width"
                     v-if="selectedAgenda.user_participants?.length > 0"
@@ -520,21 +535,6 @@
                     <label class="detail-label">Lampiran:</label>
                     <div class="detail-value">
                       <div class="attachment-list">
-                        <!-- <a
-                          v-for="attachment in selectedAgenda.attachments"
-                          :key="attachment.id"
-                          :href="`/storage/${attachment.file_path}`"
-                          target="_blank"
-                          class="attachment-item"
-                        >
-                          <span class="attachment-icon">{{
-                            getFileIcon(attachment.file_type)
-                          }}</span>
-                          <span class="attachment-name">{{ attachment.file_name }}</span>
-                          <span class="attachment-size"
-                            >({{ formatFileSize(attachment.file_size) }})</span
-                          >
-                        </a> -->
                         <a
                           v-for="attachment in selectedAgenda.attachments"
                           :key="attachment.id"
@@ -561,11 +561,50 @@
                       <span class="creator-email">{{ selectedAgenda.creator.email }}</span>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              <div class="form-actions" v-if="selectedAgenda && canEditOrDelete(selectedAgenda)">
-                <button @click="editAgenda(selectedAgenda)" class="btn btn-primary">✏️ Ubah</button>
+                  <!-- Approval Info -->
+                  <div class="detail-item" v-if="selectedAgenda.is_approved && selectedAgenda.approver">
+                    <label class="detail-label">Disetujui Oleh:</label>
+                    <div class="detail-value creator-info">
+                      <span class="creator-name">{{ selectedAgenda.approver.name }}</span>
+                      <span class="creator-email">{{ formatDateTime(selectedAgenda.approved_at) }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Updater Info -->
+                  <div class="detail-item" v-if="selectedAgenda.updater">
+                    <label class="detail-label">Terakhir Diubah Oleh:</label>
+                    <div class="detail-value creator-info">
+                      <span class="creator-name">{{ selectedAgenda.updater.name }}</span>
+                      <span class="creator-email">{{ formatDateTime(selectedAgenda.updated_at_by_user) }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ========== UNIFIED ACTION BUTTONS ========== -->
+                <div class="action-buttons" v-if="selectedAgenda">
+                  
+                  <!-- Approval Actions - untuk kepala/super_admin pada agenda pending -->
+                  <template v-if="canApprove(selectedAgenda)">
+                    <button @click="approveAgenda(selectedAgenda)" class="btn btn-success">
+                      ✅ Setujui
+                    </button>
+                    <button @click="rejectAgenda(selectedAgenda)" class="btn btn-danger">
+                      ❌ Tolak
+                    </button>
+                  </template>
+
+                  <!-- Edit & Cancel Actions - untuk creator atau admin pada agenda editable -->
+                  <template v-else-if="canEditOrDelete(selectedAgenda)">
+                    <button @click="confirmEditAgenda(selectedAgenda)" class="btn btn-primary">
+                      ✏️ Ubah Data
+                    </button>
+                    <button @click="changeStatus(selectedAgenda, 'cancelled')" class="btn btn-danger">
+                      ❌ Batalkan
+                    </button>
+                  </template>
+                </div>
+
               </div>
             </div>
           </div>
@@ -637,6 +676,7 @@ const selectedAgenda = ref(null)
 const selectedDate = ref('')
 const selectedDateAgendas = ref([])
 const editMode = ref(false)
+const showFileUpload = ref(false)
 
 const form = ref({
   title: '',
@@ -652,6 +692,7 @@ const form = ref({
   participant_ids: [],
   user_participant_ids: [],
   attachments: [],
+  attachment_links: [],
 })
 
 // Search filters
@@ -686,6 +727,41 @@ const allInternalSelected = computed(() => {
   )
 })
 
+// Computed untuk cek apakah semua PNS dipilih
+const allPnsSelected = computed(() => {
+  const pnsUsers = users.value.filter((u) => u.position === 'pns')
+  return pnsUsers.length > 0 && pnsUsers.every((u) => form.value.user_participant_ids.includes(u.id))
+})
+
+// Computed untuk cek apakah semua PPPK dipilih
+const allPppkSelected = computed(() => {
+  const pppkUsers = users.value.filter((u) => u.position === 'pppk')
+  return pppkUsers.length > 0 && pppkUsers.every((u) => form.value.user_participant_ids.includes(u.id))
+})
+
+// Function untuk select/deselect berdasarkan position
+const selectByPosition = (position) => {
+  const positionUsers = users.value.filter((u) => u.position === position)
+  const allSelected = positionUsers.every((u) => form.value.user_participant_ids.includes(u.id))
+  
+  if (allSelected) {
+    // Unselect all with this position
+    positionUsers.forEach((u) => {
+      const index = form.value.user_participant_ids.indexOf(u.id)
+      if (index > -1) {
+        form.value.user_participant_ids.splice(index, 1)
+      }
+    })
+  } else {
+    // Select all with this position
+    positionUsers.forEach((u) => {
+      if (!form.value.user_participant_ids.includes(u.id)) {
+        form.value.user_participant_ids.push(u.id)
+      }
+    })
+  }
+}
+
 // Function untuk select/deselect semua internal participants
 const selectAllInternalParticipants = () => {
   if (allInternalSelected.value) {
@@ -704,6 +780,16 @@ const selectAllInternalParticipants = () => {
       }
     })
   }
+}
+
+// Function untuk menambah link arsip
+const addAttachmentLink = () => {
+  form.value.attachment_links.push('')
+}
+
+// Function untuk menghapus link arsip
+const removeAttachmentLink = (index) => {
+  form.value.attachment_links.splice(index, 1)
 }
 
 const handleFileUpload = (event) => {
@@ -759,50 +845,70 @@ const getFileIconByName = (filename) => {
   return '📄'
 }
 
-const calculateStatus = (startDate, endDate) => {
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  const start = new Date(startDate)
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(endDate)
-  end.setHours(23, 59, 59, 999)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  if (start.getTime() === today.getTime()) return 'in_progress'
-  if (now >= start && now <= end) return 'in_progress'
-  if (now < start) return 'comming_soon'
-  return 'completed'
-}
-
 const canChangeStatus = (agenda) => {
-  return ['comming_soon', 'in_progress'].includes(agenda.status)
+  // Hanya bisa ganti jadwal/batalkan jika status comming_soon atau pending
+  return ['comming_soon', 'pending'].includes(agenda.status)
 }
 
 const canEditOrDelete = (agenda) => {
   if (!agenda) return false
   const isOwner = agenda.created_by === authStore.user?.id
-  const isAdmin = ['super_admin', 'admin'].includes(authStore.user?.role)
-  const canModify = !['cancelled', 'completed', 'schedule_change'].includes(agenda.status)
+  const isAdmin = authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag')
+  // Bisa edit/delete jika status comming_soon atau pending
+  const canModify = ['comming_soon', 'pending'].includes(agenda.status)
   return (isOwner || isAdmin) && canModify
 }
 
-const changeStatus = async (agenda, newStatus) => {
-  const confirmMessages = {
-    schedule_change: 'Apakah Anda yakin ingin mengganti jadwal agenda ini?',
-    cancelled: 'Apakah Anda yakin ingin membatalkan agenda ini?',
-  }
+// Cek apakah user bisa approve/reject
+const canApprove = (agenda) => {
+  if (!agenda) return false
+  const isApprover = authStore.hasRole('super_admin') || authStore.hasRole('kepala')
+  return isApprover && agenda.status === 'pending'
+}
 
-  if (!confirm(confirmMessages[newStatus])) return
-
+// Approve agenda
+const approveAgenda = async (agenda) => {
+  if (!confirm('Apakah Anda yakin ingin menyetujui agenda ini?')) return
+  
   try {
-    const updateData = { status: newStatus }
-    await officeAgendaService.update(agenda.id, updateData)
-    notificationStore.success('Status berhasil diubah')
+    await officeAgendaService.approve(agenda.id)
+    notificationStore.success('Agenda berhasil disetujui dan notifikasi WA telah dikirim')
     showDetailModal.value = false
     await loadAgendas()
   } catch (error) {
-    notificationStore.error(error.response?.data?.message || 'Terjadi kesalahan')
+    notificationStore.error(error.response?.data?.message || 'Gagal menyetujui agenda')
+  }
+}
+
+// Reject agenda
+const rejectAgenda = async (agenda) => {
+  if (!confirm('Apakah Anda yakin ingin menolak agenda ini?')) return
+  
+  try {
+    await officeAgendaService.reject(agenda.id)
+    notificationStore.success('Agenda berhasil ditolak')
+    showDetailModal.value = false
+    await loadAgendas()
+  } catch (error) {
+    notificationStore.error(error.response?.data?.message || 'Gagal menolak agenda')
+  }
+}
+
+const changeStatus = async (agenda, newStatus) => {
+  if (newStatus === 'cancelled') {
+    if (!confirm('Apakah Anda yakin ingin membatalkan agenda ini?')) return
+
+    try {
+      await officeAgendaService.delete(agenda.id)
+      notificationStore.success('Agenda berhasil dibatalkan')
+      showDetailModal.value = false
+      await loadAgendas()
+    } catch (error) {
+      notificationStore.error(error.response?.data?.message || 'Terjadi kesalahan')
+    }
+  } else if (newStatus === 'schedule_change') {
+    showDetailModal.value = false
+    editAgenda(agenda)
   }
 }
 
@@ -829,6 +935,7 @@ const formatTime = (datetime) => {
 
 const getStatusText = (status) => {
   const statusMap = {
+    pending: 'Menunggu Persetujuan',
     comming_soon: 'Akan Datang',
     in_progress: 'Sedang Berlangsung',
     schedule_change: 'Perubahan Jadwal',
@@ -951,26 +1058,48 @@ const editAgenda = (agenda) => {
   modalTitle.value = 'Ubah Agenda'
   selectedAgenda.value = agenda
 
-  const startDate = new Date(agenda.start_at)
-  const untilDate = new Date(agenda.until_at)
+  // Format datetime for datetime-local input (local timezone, not UTC)
+  const formatDateTimeLocal = (dateString) => {
+    const date = new Date(dateString)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  }
 
   form.value = {
     title: agenda.title,
-    start_at: startDate.toISOString().substring(0, 16),
-    until_at: untilDate.toISOString().substring(0, 16),
+    start_at: formatDateTimeLocal(agenda.start_at),
+    until_at: formatDateTimeLocal(agenda.until_at),
     agenda_type: agenda.agenda_type,
     activity_type: agenda.activity_type,
     metting_link: agenda.metting_link || '',
-    location: agenda.location,
-    room_id: agenda.room_id || '',
-    status: agenda.status,
+    location: agenda.location || '',
+    room_id: agenda.room_id || (agenda.location ? 'other' : ''),
     description: agenda.description || '',
     participant_ids: agenda.participants?.map((p) => p.id) || [],
-    user_participant_ids: agenda.userParticipants?.map((u) => u.id) || [],
+    user_participant_ids: agenda.user_participants?.map((u) => u.id) || [],
     attachments: [],
+    attachment_links: agenda.attachment_links || [],
   }
 
   showFormModal.value = true
+}
+
+// Konfirmasi sebelum edit - jika agenda sudah approved akan reset ke pending
+const confirmEditAgenda = (agenda) => {
+  // Jika user adalah kepala/super_admin, langsung edit tanpa reset ke pending
+  const isAutoApprover = authStore.hasRole('super_admin') || authStore.hasRole('kepala')
+  
+  if (agenda.is_approved && agenda.status === 'comming_soon' && !isAutoApprover) {
+    if (!confirm('Agenda ini sudah disetujui. Jika Anda mengubahnya, status akan kembali ke "Menunggu Persetujuan" dan memerlukan approval ulang dari Kepala. Lanjutkan?')) {
+      return
+    }
+  }
+  
+  editAgenda(agenda)
 }
 
 const closeFormModal = () => {
@@ -1016,13 +1145,14 @@ const resetForm = () => {
     metting_link: '',
     location: '',
     room_id: '',
-    status: 'comming_soon',
     description: '',
     participant_ids: [],
     user_participant_ids: [],
     attachments: [],
+    attachment_links: [],
   }
   selectedAgenda.value = null
+  showFileUpload.value = false
 }
 
 const handleSubmit = async () => {
@@ -1043,8 +1173,6 @@ const handleSubmit = async () => {
 
   submitting.value = true
   try {
-    form.value.status = calculateStatus(form.value.start_at, form.value.until_at)
-
     // Gunakan FormData untuk upload file
     const formData = new FormData()
     formData.append('title', form.value.title)
@@ -1052,12 +1180,25 @@ const handleSubmit = async () => {
     formData.append('until_at', form.value.until_at)
     formData.append('agenda_type', form.value.agenda_type)
     formData.append('activity_type', form.value.activity_type)
-    formData.append('location', form.value.location)
-    formData.append('status', form.value.status)
 
+    // Handle location - if room_id is 'other', use manual location
+    if (form.value.room_id === 'other') {
+      formData.append('location', form.value.location)
+      // Don't send room_id when using manual location
+    } else {
+      if (form.value.room_id) formData.append('room_id', form.value.room_id)
+      // Set location based on room name if available
+      const selectedRoom = rooms.value.find(r => r.id === form.value.room_id)
+      if (selectedRoom) formData.append('location', selectedRoom.name)
+    }
+    
     if (form.value.metting_link) formData.append('metting_link', form.value.metting_link)
-    if (form.value.room_id) formData.append('room_id', form.value.room_id)
     if (form.value.description) formData.append('description', form.value.description)
+
+    // Tambahkan attachment links (filter empty)
+    form.value.attachment_links.filter(link => link && link.trim()).forEach((link) => {
+      formData.append('attachment_links[]', link)
+    })
 
     // Tambahkan participant IDs
     form.value.participant_ids.forEach((id) => {
@@ -1203,6 +1344,68 @@ onMounted(async () => {
 
 .btn-secondary:hover {
   background: #d1d5db;
+}
+
+.btn-success {
+  background: #059669;
+  color: white;
+}
+
+.btn-success:hover {
+  background: #047857;
+}
+
+.btn-warning {
+  background: #f59e0b;
+  color: white;
+}
+
+.btn-warning:hover {
+  background: #d97706;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+
+.action-buttons .btn {
+  flex: 1;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.detail-status-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+
+.approval-badge {
+  background: #fef9c3;
+  color: #ca8a04;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: 1px dashed #facc15;
 }
 
 .calendar-container {
@@ -1731,6 +1934,143 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+.participant-header-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-select-position {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.btn-select-position.btn-pns {
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.btn-select-position.btn-pns:hover,
+.btn-select-position.btn-pns.active {
+  background: #dbeafe;
+  border-color: #1e40af;
+}
+
+.btn-select-position.btn-pppk {
+  color: #059669;
+  border-color: #a7f3d0;
+}
+
+.btn-select-position.btn-pppk:hover,
+.btn-select-position.btn-pppk.active {
+  background: #d1fae5;
+  border-color: #059669;
+}
+
+.participant-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.position-badge {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.position-badge.pns {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.position-badge.pppk {
+  background: #d1fae5;
+  color: #059669;
+}
+
+/* Attachment Links Section */
+.attachment-links-section {
+  margin-bottom: 12px;
+}
+
+.link-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.link-input-row .form-input {
+  flex: 1;
+}
+
+.btn-remove-link {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.btn-remove-link:hover {
+  background: #fecaca;
+}
+
+.btn-add-link {
+  background: #eff6ff;
+  border: 1px dashed #bfdbfe;
+  color: #1e40af;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.btn-add-link:hover {
+  background: #dbeafe;
+  border-color: #1e40af;
+}
+
+/* File Upload Section */
+.file-upload-section {
+  margin-top: 12px;
+}
+
+.file-upload-toggle {
+  margin-bottom: 8px;
+}
+
+.btn-toggle-upload {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.btn-toggle-upload:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #475569;
+}
+
 /* File Upload Area */
 .file-upload-area {
   display: flex;
@@ -2062,6 +2402,61 @@ onMounted(async () => {
 .status-schedule_change {
   background: #fef3c7;
   color: #f59e0b;
+}
+
+.status-pending {
+  background: #fef9c3;
+  color: #ca8a04;
+  border: 1px dashed #facc15;
+}
+
+.event-pending {
+  background: #fef9c3;
+  border-left-color: #ca8a04;
+  color: #ca8a04;
+}
+
+.agenda-pending {
+  border-left-color: #ca8a04;
+  background: #fefce8;
+}
+
+.btn-approve {
+  background: #dcfce7;
+  color: #059669;
+  border: 1px solid #22c55e;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-approve:hover {
+  background: #bbf7d0;
+}
+
+.btn-reject {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #f87171;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-reject:hover {
+  background: #fecaca;
+}
+
+.approval-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
 }
 
 .modal-enter-active,

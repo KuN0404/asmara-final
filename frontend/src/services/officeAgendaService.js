@@ -72,4 +72,14 @@ export default {
     })
     return response.data
   },
+
+  async approve(id) {
+    const response = await api.post(`/office-agendas/${id}/approve`)
+    return response.data
+  },
+
+  async reject(id) {
+    const response = await api.post(`/office-agendas/${id}/reject`)
+    return response.data
+  },
 }

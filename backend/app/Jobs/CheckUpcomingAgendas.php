@@ -38,11 +38,21 @@ class CheckUpcomingAgendas implements ShouldQueue
     {
         $tomorrow = Carbon::tomorrow('Asia/Jakarta');
 
+        // ✅ MODIFIKASI: Hapus filter status, gunakan withTrashed
+        // Status otomatis dihitung dari backend
+
         // H-1 Office Agendas
-        $officeAgendas = OfficeAgenda::with(['userParticipants', 'room'])
+        $officeAgendas = OfficeAgenda::query()
+            ->withTrashed() // Include soft deleted
+            ->with(['userParticipants', 'room'])
             ->whereDate('start_at', $tomorrow->toDateString())
-            ->whereIn('status', ['comming_soon', 'in_progress'])
-            ->get();
+            ->get()
+            // ✅ Filter di PHP setelah status ter-calculate
+            ->filter(function($agenda) {
+                // Hanya kirim reminder jika status 'comming_soon'
+                // Status otomatis dari accessor getStatusAttribute()
+                return $agenda->status === 'comming_soon';
+            });
 
         foreach ($officeAgendas as $agenda) {
             foreach ($agenda->userParticipants as $user) {
@@ -68,10 +78,14 @@ class CheckUpcomingAgendas implements ShouldQueue
         }
 
         // H-1 My Agendas
-        $myAgendas = MyAgenda::with('creator')
+        $myAgendas = MyAgenda::query()
+            ->withTrashed()
+            ->with('creator')
             ->whereDate('start_at', $tomorrow->toDateString())
-            ->whereIn('status', ['comming_soon', 'in_progress'])
-            ->get();
+            ->get()
+            ->filter(function($agenda) {
+                return $agenda->status === 'comming_soon';
+            });
 
         foreach ($myAgendas as $agenda) {
             $user = $agenda->creator;
@@ -100,11 +114,18 @@ class CheckUpcomingAgendas implements ShouldQueue
     {
         $today = Carbon::today('Asia/Jakarta');
 
+        // ✅ MODIFIKASI: Sama seperti H-1
+
         // H-Day Office Agendas
-        $officeAgendas = OfficeAgenda::with(['userParticipants', 'room'])
+        $officeAgendas = OfficeAgenda::query()
+            ->withTrashed()
+            ->with(['userParticipants', 'room'])
             ->whereDate('start_at', $today->toDateString())
-            ->whereIn('status', ['comming_soon', 'in_progress'])
-            ->get();
+            ->get()
+            ->filter(function($agenda) {
+                // Kirim reminder untuk yang 'comming_soon' atau 'in_progress'
+                return in_array($agenda->status, ['comming_soon', 'in_progress']);
+            });
 
         foreach ($officeAgendas as $agenda) {
             foreach ($agenda->userParticipants as $user) {
@@ -130,10 +151,14 @@ class CheckUpcomingAgendas implements ShouldQueue
         }
 
         // H-Day My Agendas
-        $myAgendas = MyAgenda::with('creator')
+        $myAgendas = MyAgenda::query()
+            ->withTrashed()
+            ->with('creator')
             ->whereDate('start_at', $today->toDateString())
-            ->whereIn('status', ['comming_soon', 'in_progress'])
-            ->get();
+            ->get()
+            ->filter(function($agenda) {
+                return in_array($agenda->status, ['comming_soon', 'in_progress']);
+            });
 
         foreach ($myAgendas as $agenda) {
             $user = $agenda->creator;

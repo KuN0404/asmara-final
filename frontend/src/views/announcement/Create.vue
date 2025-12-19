@@ -52,11 +52,11 @@
           </ul>
         </div>
 
-        <!-- Checkbox tampilkan -->
+        <!-- Checkbox kirim notifikasi WA -->
         <div class="form-group">
           <label class="checkbox-label">
-            <input type="checkbox" v-model="form.is_displayed" class="checkbox-input" />
-            <span>Tampilkan ke pengguna lain</span>
+            <input type="checkbox" v-model="form.is_notification" class="checkbox-input" />
+            <span>Kirim Notifikasi WhatsApp</span>
           </label>
         </div>
 
@@ -95,7 +95,7 @@ const form = ref({
   title: '',
   content: '',
   attachments: [],
-  is_displayed: true,
+  is_notification: false,
 })
 
 /** 📎 Upload banyak lampiran */
@@ -122,7 +122,7 @@ const handleSubmit = async () => {
   const formData = new FormData()
   formData.append('title', form.value.title)
   formData.append('content', form.value.content)
-  formData.append('is_displayed', form.value.is_displayed ? '1' : '0')
+  formData.append('is_notification', form.value.is_notification ? '1' : '0')
 
   form.value.attachments.forEach((file) => {
     formData.append('attachments[]', file)

@@ -123,11 +123,11 @@ const stats = ref({
 const recentAnnouncements = ref([])
 
 const canCreateOfficeAgenda = computed(
-  () => authStore.hasRole('super_admin') || authStore.hasRole('admin'),
+  () => authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag'),
 )
 
 const canCreateAnnouncement = computed(
-  () => authStore.hasRole('super_admin') || authStore.hasRole('admin'),
+  () => authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag'),
 )
 
 const loadDashboardData = async () => {
@@ -146,16 +146,17 @@ const loadDashboardData = async () => {
     const myAgendas = myAgendasResponse.data || []
 
     // Status yang tidak ditampilkan
-    const excludedStatuses = ['cancelled', 'completed', 'schedule_change']
 
     // ========== AGENDA KANTOR ==========
     // Filter agenda kantor dimana user diajak sebagai participant
     const myOfficeAgendas = officeAgendas.filter((agenda) => {
-      // Cek apakah user ada di user_participants
       const isUserParticipant = agenda.user_participants?.some(
         (participant) => participant.id === currentUserId,
       )
-      return isUserParticipant && !excludedStatuses.includes(agenda.status)
+      // ✅ Status otomatis dari backend, hanya exclude 'cancelled'
+      // 'completed' otomatis jika tanggal lewat
+      // 'schedule_change' tidak ada lagi
+      return isUserParticipant && agenda.status !== 'cancelled'
     })
 
     // Agenda Kantor Yang Akan Datang (status: comming_soon)
@@ -168,15 +169,13 @@ const loadDashboardData = async () => {
       const agendaDate = a.start_at?.split('T')[0] || a.start_at?.split(' ')[0]
       const isToday = agendaDate === today
       const isInProgress = a.status === 'in_progress'
-
-      // Harus hari ini DAN sedang berlangsung
       return isToday && isInProgress
     }).length
 
     // ========== AGENDA SAYA (MY AGENDA) ==========
     // Filter agenda pribadi yang dibuat oleh user yang sedang login
     const activeMyAgendas = myAgendas.filter(
-      (a) => a.created_by === currentUserId && !excludedStatuses.includes(a.status),
+      (a) => a.created_by === currentUserId && a.status !== 'cancelled',
     )
 
     // Agenda Saya Yang Akan Datang (status: comming_soon)
@@ -187,8 +186,6 @@ const loadDashboardData = async () => {
       const agendaDate = a.start_at?.split('T')[0] || a.start_at?.split(' ')[0]
       const isToday = agendaDate === today
       const isInProgress = a.status === 'in_progress'
-
-      // Harus hari ini DAN sedang berlangsung
       return isToday && isInProgress
     }).length
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Carbon\Carbon;
 
 class OfficeAgenda extends Model
 {
@@ -18,23 +19,73 @@ class OfficeAgenda extends Model
         'metting_link',
         'location',
         'room_id',
-        'status',
         'description',
+        'attachment_links',
         'created_by',
+        'is_approved',
+        'approved_by',
+        'approved_at',
+        'updated_by',
+        'updated_at_by_user',
     ];
 
     protected $casts = [
         'start_at' => 'datetime',
         'until_at' => 'datetime',
+        'is_approved' => 'boolean',
+        'approved_at' => 'datetime',
+        'updated_at_by_user' => 'datetime',
+        'attachment_links' => 'array',
     ];
 
-    // Relasi dengan Room
+    // APPEND status ke response JSON
+    protected $appends = ['status'];
+
+    // ========== ACCESSOR: STATUS DINAMIS ==========
+    public function getStatusAttribute(): string
+    {
+        if ($this->trashed()) {
+            return 'cancelled';
+        }
+
+        // Cek approval - jika belum di-approve, status pending
+        if (!$this->is_approved) {
+            return 'pending';
+        }
+
+        $now = Carbon::now();
+        $startAt = Carbon::parse($this->start_at);
+        $untilAt = Carbon::parse($this->until_at);
+
+        if ($now->greaterThan($untilAt)) {
+            return 'completed';
+        }
+
+        if ($now->between($startAt, $untilAt)) {
+            return 'in_progress';
+        }
+
+        return 'comming_soon';
+    }
+
+    // ========== SCOPES ==========
+
+    public function scopeDateRange($query, $startDate, $endDate)
+    {
+        return $query->whereBetween('start_at', [$startDate, $endDate]);
+    }
+
+    public function scopeByAgendaType($query, $type)
+    {
+        return $query->where('agenda_type', $type);
+    }
+
+    // Relasi (existing)
     public function room()
     {
         return $this->belongsTo(Room::class);
     }
 
-    // Relasi dengan Participants (External)
     public function participants()
     {
         return $this->belongsToMany(
@@ -45,7 +96,6 @@ class OfficeAgenda extends Model
         )->whereNotNull('participant_id');
     }
 
-    // Relasi dengan Users (Internal Participants)
     public function userParticipants()
     {
         return $this->belongsToMany(
@@ -56,7 +106,6 @@ class OfficeAgenda extends Model
         )->whereNotNull('user_id');
     }
 
-    // Relasi dengan Attachments
     public function attachments()
     {
         return $this->belongsToMany(
@@ -67,19 +116,18 @@ class OfficeAgenda extends Model
         );
     }
 
-    // Relasi dengan Creator
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    // Auto set deleted_at when status is cancelled
-    protected static function booted()
+    public function approver()
     {
-        static::updating(function ($agenda) {
-            if ($agenda->isDirty('status') && $agenda->status === 'cancelled') {
-                $agenda->deleted_at = now();
-            }
-        });
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function updater()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

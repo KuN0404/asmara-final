@@ -80,12 +80,24 @@
           />
         </div>
 
+        <!-- Jabatan/Position -->
+        <div class="form-group">
+          <label class="form-label">Jabatan *</label>
+          <select class="form-input" v-model="form.position" required>
+            <option value="">-- Pilih Jabatan --</option>
+            <option value="pns">PNS</option>
+            <option value="pppk">PPPK</option>
+          </select>
+        </div>
+
         <!-- Role -->
         <div class="form-group">
           <label class="form-label">Role *</label>
           <select class="form-input" v-model="form.role" required>
             <option value="">-- Pilih Role --</option>
-            <option value="admin">Admin</option>
+            <option value="kepala">Kepala</option>
+            <option value="ketua_tim">Ketua Tim</option>
+            <option value="kasubbag">Kasubbag</option>
             <option value="staff">Staff</option>
           </select>
         </div>
@@ -130,6 +142,7 @@ const form = ref({
   whatsapp_number: '',
   email: '',
   address: '',
+  position: '',
   role: '',
   photo: null,
 })
@@ -158,6 +171,7 @@ const handleSubmit = async () => {
   if (!form.value.whatsapp_number) return notificationStore.error('Nomor WhatsApp wajib diisi')
   if (!form.value.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email))
     return notificationStore.error('Email tidak valid')
+  if (!form.value.position) return notificationStore.error('Jabatan wajib dipilih')
   if (!form.value.role) return notificationStore.error('Role wajib dipilih')
 
   loading.value = true

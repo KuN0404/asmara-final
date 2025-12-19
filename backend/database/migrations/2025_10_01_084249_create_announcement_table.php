@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('announcement', function (Blueprint $table) {
             $table->id();
             $table->text('content'); // saya ingin membuat kolom nya dengan fitu text yang bisa diatur ke bulet oin rat aanan kiri dll
-            $table->boolean('is_displayed')->default(false);
+            $table->boolean('is_notification')->default(false);
             $table->string('created_by');
             $table->timestamps();
         });

@@ -19,14 +19,6 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
             $table->boolean('is_show_to_other')->default(false);
-            $table->enum('status', [
-                'comming_soon',
-                'in_progress',
-                'schedule_change',
-                'completed',
-                'cancelled'
-            ])->default('comming_soon');
-            // 🔸 Relasi ke tabel users
             $table->foreignId('created_by')
                 ->constrained('users') // default: references('id')->on('users')
                 ->onDelete('cascade'); // jika user dihapus, agenda ikut terhapus

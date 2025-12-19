@@ -186,8 +186,10 @@ const getInitials = (name) => {
 const formatRoleName = (roleName) => {
   const roleMap = {
     super_admin: 'Super Admin',
-    admin: 'Admin',
-    user: 'User',
+    kepala: 'Kepala',
+    ketua_tim: 'Ketua Tim',
+    kasubbag: 'Kasubbag',
+    staff: 'Staff',
   }
   return roleMap[roleName] || roleName
 }
@@ -195,8 +197,10 @@ const formatRoleName = (roleName) => {
 const getRoleClass = (roleName) => {
   const classMap = {
     super_admin: 'role-super-admin',
-    admin: 'role-admin',
-    user: 'role-user',
+    kepala: 'role-kepala',
+    ketua_tim: 'role-ketua-tim',
+    kasubbag: 'role-kasubbag',
+    staff: 'role-staff',
   }
   return classMap[roleName] || 'role-default'
 }

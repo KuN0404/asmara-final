@@ -94,7 +94,7 @@ const whatsappStatus = ref('disconnected')
 let statusCheckInterval = null
 
 const canAccessAdmin = computed(() => {
-  return authStore.hasRole('super_admin') || authStore.hasRole('admin')
+  return authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag')
 })
 
 // ✨ TAMBAHAN: WhatsApp Status Class
@@ -140,7 +140,9 @@ onUnmounted(() => {
 const getRoleName = (role) => {
   const roles = {
     super_admin: 'Super Admin',
-    admin: 'Admin',
+    kepala: 'Kepala',
+    ketua_tim: 'Ketua Tim',
+    kasubbag: 'Kasubbag',
     staff: 'Staff',
   }
   return roles[role] || role

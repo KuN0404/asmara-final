@@ -28,6 +28,7 @@
             <tr>
               <th>No</th>
               <th>Nama</th>
+              <th>Jabatan</th>
               <th>No Hp</th>
               <th>Status</th>
               <th>Aksi</th>
@@ -37,6 +38,7 @@
             <tr v-for="(user, index) in users" :key="user.id">
               <td>{{ (filters.page - 1) * filters.per_page + index + 1 }}</td>
               <td>{{ user.name }}</td>
+              <td>{{ user.position ? user.position.toUpperCase() : '-' }}</td>
               <td>{{ user.whatsapp_number || '-' }}</td>
               <td>
                 <span :class="user.deleted_at ? 'badge-inactive' : 'badge-active'">
@@ -113,7 +115,7 @@ const filters = ref({
 })
 
 // Hak akses
-const canCreate = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('admin'))
+const canCreate = computed(() => authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag'))
 const canEdit = computed(() => canCreate.value)
 const canDelete = computed(() => canCreate.value)
 
