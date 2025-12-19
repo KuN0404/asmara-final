@@ -21,6 +21,8 @@ class OfficeAgenda extends Model
         'room_id',
         'description',
         'attachment_links',
+        'reminder_count',
+        'last_reminder_at',
         'created_by',
         'is_approved',
         'approved_by',
@@ -36,6 +38,7 @@ class OfficeAgenda extends Model
         'approved_at' => 'datetime',
         'updated_at_by_user' => 'datetime',
         'attachment_links' => 'array',
+        'last_reminder_at' => 'datetime',
     ];
 
     // APPEND status ke response JSON

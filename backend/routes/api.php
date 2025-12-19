@@ -11,29 +11,31 @@ use App\Http\Controllers\API\ParticipantController;
 use App\Http\Controllers\API\AnnouncementController;
 use App\Http\Controllers\API\OfficeAgendaController;
 
-// Public routes
-Route::post('/login', [AuthController::class, 'login']);
+// ========================================
+// PUBLIC ROUTES (No Auth Required)
+// ========================================
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1'); // Max 10 login attempts per minute
 
-// Protected routes
+// ========================================
+// PROTECTED ROUTES (Auth Required)
+// ========================================
 Route::middleware('auth:sanctum')->group(function () {
-    // Auth
+    
+    // --- AUTH ---
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
+    // --- PROFILE ---
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
 
-    // Users - Only Super Admin
+    // --- USERS (Super Admin, Kepala, Ketua Tim, Kasubbag) ---
     Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
         Route::apiResource('users', UserController::class);
-        Route::post('users', [UserController::class, 'store']);
-        Route::put('users/{id}', [UserController::class, 'update']);
-        Route::delete('users/{id}', [UserController::class, 'destroy']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
-
     });
 
-    // Rooms - All authenticated users can view, Super Admin & Admin can manage
+    // --- ROOMS ---
     Route::get('rooms', [RoomController::class, 'index']);
     Route::get('rooms/{id}', [RoomController::class, 'show']);
     Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
@@ -42,7 +44,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('rooms/{id}', [RoomController::class, 'destroy']);
     });
 
-    // Participants - All authenticated users can view, Super Admin & Admin can manage
+    // --- PARTICIPANTS ---
     Route::get('participants', [ParticipantController::class, 'index']);
     Route::get('participants/{id}', [ParticipantController::class, 'show']);
     Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
@@ -51,35 +53,27 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('participants/{id}', [ParticipantController::class, 'destroy']);
     });
 
+    // --- OFFICE AGENDAS ---
+    Route::apiResource('office-agendas', OfficeAgendaController::class);
+    
+    // Approval routes - hanya kepala dan super_admin
+    Route::middleware('role:super_admin,kepala')->group(function () {
+        Route::post('office-agendas/{id}/approve', [OfficeAgendaController::class, 'approve']);
+        Route::post('office-agendas/{id}/reject', [OfficeAgendaController::class, 'reject']);
+    });
+    
+    // Delete attachment - admin roles only
+    Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
+        Route::delete('office-agendas/{officeAgenda}/attachments', [OfficeAgendaController::class, 'deleteAttachment']);
+        Route::post('office-agendas/{id}/reminder', [OfficeAgendaController::class, 'sendReminder'])->middleware('throttle:1,1'); // Max 1 reminder per minute
+    });
 
-// Office Agenda routes
-Route::apiResource('office-agendas', OfficeAgendaController::class);
-Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
-    // Delete specific attachment
-    Route::delete('office-agendas/{officeAgenda}/attachments', [OfficeAgendaController::class, 'deleteAttachment']);
-});
-// Approval routes - hanya kepala dan super_admin
-Route::middleware('role:super_admin,kepala')->group(function () {
-    Route::post('office-agendas/{id}/approve', [OfficeAgendaController::class, 'approve']);
-    Route::post('office-agendas/{id}/reject', [OfficeAgendaController::class, 'reject']);
-});
-
-    // My Agendas - All authenticated users
-    // Route::apiResource('my-agendas', MyAgendaController::class);
-    // Route::get('public-agendas', [MyAgendaController::class, 'publicAgendas']);
-
-Route::middleware('auth:sanctum')->group(function () {
-    // My Agendas
+    // --- MY AGENDAS ---
     Route::apiResource('my-agendas', MyAgendaController::class);
     Route::post('my-agendas/{id}/restore', [MyAgendaController::class, 'restore']);
     Route::get('public-agendas', [MyAgendaController::class, 'publicAgendas']);
 
-    // Office Agendas
-    Route::apiResource('office-agendas', OfficeAgendaController::class);
-});
-
-
-    // Announcements - Super Admin & Admin can manage, all can view
+    // --- ANNOUNCEMENTS ---
     Route::get('announcements', [AnnouncementController::class, 'index']);
     Route::get('announcements/{id}', [AnnouncementController::class, 'show']);
     Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
@@ -88,9 +82,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('announcements/{id}', [AnnouncementController::class, 'destroy']);
     });
 
+    // --- WHATSAPP (Admin only) ---
     Route::middleware('role:super_admin,kepala,ketua_tim,kasubbag')->group(function () {
         Route::get('whatsapp/status', [WhatsAppController::class, 'status']);
         Route::get('whatsapp/logs', [WhatsAppController::class, 'logs']);
-        Route::post('whatsapp/send-test', [WhatsAppController::class, 'sendTest']);
+        Route::post('whatsapp/send-test', [WhatsAppController::class, 'sendTest'])->middleware('throttle:5,1'); // Limit test messages
     });
 });

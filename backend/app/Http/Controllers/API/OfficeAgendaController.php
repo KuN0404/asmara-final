@@ -648,6 +648,113 @@ class OfficeAgendaController extends Controller
         }
     }
 
+    // ========== SEND REMINDER ==========
+    public function sendReminder($id)
+    {
+        try {
+            $agenda = OfficeAgenda::with(['userParticipants', 'participants', 'room', 'creator'])->findOrFail($id);
+            
+            // Hanya bisa kirim reminder untuk agenda yang sudah di-approve
+            if (!$agenda->is_approved) {
+                return response()->json([
+                    'message' => 'Hanya bisa mengirim reminder untuk agenda yang sudah disetujui'
+                ], 400);
+            }
+            
+            // Hanya bisa kirim reminder untuk agenda yang belum lewat
+            if (Carbon::parse($agenda->start_at)->isPast()) {
+                return response()->json([
+                    'message' => 'Tidak bisa mengirim reminder untuk agenda yang sudah lewat'
+                ], 400);
+            }
+            
+            // Check 3x/1hr limit - jika sudah 3x reminder dalam 1 jam terakhir, block
+            if ($agenda->reminder_count >= 3 && $agenda->last_reminder_at) {
+                $lastReminderAt = Carbon::parse($agenda->last_reminder_at);
+                $nextAllowedTime = $lastReminderAt->addHour();
+                
+                if (Carbon::now()->lt($nextAllowedTime)) {
+                    $minutesRemaining = Carbon::now()->diffInMinutes($nextAllowedTime);
+                    return response()->json([
+                        'message' => "Sudah mengirim reminder 3x. Silakan tunggu {$minutesRemaining} menit lagi.",
+                        'next_allowed_at' => $nextAllowedTime->toIso8601String(),
+                        'minutes_remaining' => $minutesRemaining
+                    ], 429); // Too Many Requests
+                } else {
+                    // Reset counter after 1 hour
+                    $agenda->reminder_count = 0;
+                }
+            }
+            
+            // Build reminder message
+            $message = "🔔 *PENGINGAT AGENDA*\n\n" .
+                      "📌 {$agenda->title}\n" .
+                      "📆 " . Carbon::parse($agenda->start_at)->format('d M Y') . "\n" .
+                      "🕐 " . Carbon::parse($agenda->start_at)->format('H:i') . " - " . Carbon::parse($agenda->until_at)->format('H:i') . " WIB\n" .
+                      "📍 {$agenda->location}\n";
+            
+            if ($agenda->room) {
+                $message .= "🏢 Ruangan: {$agenda->room->name}\n";
+            }
+            
+            $message .= "\n_Dikirim oleh: " . auth()->user()->name . "_";
+            
+            $sentCount = 0;
+            
+            // Kirim ke user participants (internal)
+            foreach ($agenda->userParticipants as $user) {
+                if ($user->whatsapp_number) {
+                    SendWhatsAppNotification::dispatch(
+                        $user->whatsapp_number,
+                        $message,
+                        'office_agenda',
+                        'manual',
+                        $agenda->id
+                    );
+                    $sentCount++;
+                }
+            }
+            
+            // Kirim ke external participants
+            foreach ($agenda->participants as $participant) {
+                if ($participant->phone) {
+                    SendWhatsAppNotification::dispatch(
+                        $participant->phone,
+                        $message,
+                        'office_agenda',
+                        'manual',
+                        $agenda->id
+                    );
+                    $sentCount++;
+                }
+            }
+            
+            // Update reminder tracking
+            $agenda->update([
+                'reminder_count' => $agenda->reminder_count + 1,
+                'last_reminder_at' => now()
+            ]);
+            
+            $remainingReminders = 3 - $agenda->reminder_count - 1;
+            $limitMessage = $remainingReminders > 0 
+                ? "Sisa {$remainingReminders}x reminder sebelum limit 1 jam." 
+                : "Reminder selanjutnya bisa dikirim setelah 1 jam.";
+            
+            return response()->json([
+                'message' => "Reminder berhasil dikirim ke {$sentCount} peserta. {$limitMessage}",
+                'sent_count' => $sentCount,
+                'reminder_count' => $agenda->reminder_count + 1,
+                'remaining_reminders' => max(0, $remainingReminders)
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send reminder: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal mengirim reminder',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     // ========== HELPER: SEND AGENDA NOTIFICATION ==========
     private function sendAgendaNotification($agenda, $type, $userParticipantIds = [], $externalParticipantIds = [])
     {

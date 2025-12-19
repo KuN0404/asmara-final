@@ -33,9 +33,28 @@
           />
         </div>
 
-        <!-- Lampiran Lama -->
+        <!-- Link Lampiran (Primary) -->
+        <div class="form-group">
+          <label class="form-label">Link Lampiran (Arsip)</label>
+          <div class="attachment-links-section">
+            <div class="link-input-row" v-for="(link, index) in form.attachment_links" :key="index">
+              <input
+                type="url"
+                class="form-input"
+                v-model="form.attachment_links[index]"
+                placeholder="https://drive.google.com/... atau link dokumen lainnya"
+              />
+              <button type="button" @click="removeLink(index)" class="remove-link-btn">✕</button>
+            </div>
+            <button type="button" @click="addLink" class="btn-add-link">
+              🔗 Tambah Link Arsip
+            </button>
+          </div>
+        </div>
+
+        <!-- Lampiran File Lama -->
         <div v-if="existingAttachments.length" class="form-group">
-          <label class="form-label">Lampiran Saat Ini</label>
+          <label class="form-label">File Lampiran Saat Ini</label>
           <ul class="existing-attachment-list">
             <li v-for="att in existingAttachments" :key="att.id">
               <a :href="`http://localhost:8000/storage/${att.file_path}`" target="_blank">
@@ -46,16 +65,25 @@
           </ul>
         </div>
 
-        <!-- Lampiran Baru -->
+        <!-- File Upload (Optional) -->
         <div class="form-group">
-          <label class="form-label">Tambah Lampiran Baru (optional)</label>
-          <input
-            type="file"
-            class="form-input"
-            multiple
-            @change="handleAttachmentsUpload"
-            accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
-          />
+          <div class="file-upload-toggle">
+            <button type="button" @click="showFileUpload = !showFileUpload" class="btn-toggle-upload">
+              {{ showFileUpload ? '📁 Sembunyikan Upload File' : '📎 Upload File Baru (Opsional)' }}
+            </button>
+          </div>
+          
+          <div v-if="showFileUpload" class="file-upload-area">
+            <input
+              type="file"
+              class="form-input"
+              multiple
+              @change="handleAttachmentsUpload"
+              accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+            />
+            <span class="upload-hint">Maks 10MB per file. Format: JPG, PNG, PDF, DOC</span>
+          </div>
+          
           <ul v-if="newAttachmentNames.length" class="attachment-list">
             <li v-for="(name, index) in newAttachmentNames" :key="index">
               📎 {{ name }}
@@ -108,13 +136,24 @@ const announcement = ref(null)
 const existingAttachments = ref([])
 const newAttachmentNames = ref([])
 const removedAttachmentIds = ref([])
+const showFileUpload = ref(false)
 
 const form = ref({
   title: '',
   content: '',
+  attachment_links: [],
   attachments: [],
   is_notification: false,
 })
+
+// Add/remove link functions
+const addLink = () => {
+  form.value.attachment_links.push('')
+}
+
+const removeLink = (index) => {
+  form.value.attachment_links.splice(index, 1)
+}
 
 onMounted(async () => {
   try {
@@ -123,6 +162,7 @@ onMounted(async () => {
 
     form.value.title = data.title
     form.value.content = data.content
+    form.value.attachment_links = data.attachment_links || []
     form.value.is_notification = data.is_notification
     existingAttachments.value = data.attachments || []
   } catch (error) {
@@ -167,6 +207,11 @@ const handleSubmit = async () => {
   formData.append('title', form.value.title)
   formData.append('content', form.value.content)
   formData.append('is_notification', form.value.is_notification ? '1' : '0')
+
+  // Add attachment links
+  form.value.attachment_links.filter(link => link && link.trim()).forEach((link) => {
+    formData.append('attachment_links[]', link)
+  })
 
   // Lampiran baru
   form.value.attachments.forEach((file) => {
@@ -289,6 +334,91 @@ const handleSubmit = async () => {
   font-size: 14px;
   cursor: pointer;
   margin-left: 8px;
+}
+
+/* Link attachment styles */
+.attachment-links-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.link-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.link-input-row .form-input {
+  flex: 1;
+}
+
+.remove-link-btn {
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.remove-link-btn:hover {
+  background: #fecaca;
+}
+
+.btn-add-link {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px dashed #3b82f6;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  margin-top: 4px;
+}
+
+.btn-add-link:hover {
+  background: #dbeafe;
+}
+
+/* File upload toggle */
+.file-upload-toggle {
+  margin-bottom: 12px;
+}
+
+.btn-toggle-upload {
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-toggle-upload:hover {
+  background: #e5e7eb;
+}
+
+.file-upload-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: #6b7280;
 }
 
 .checkbox-label {

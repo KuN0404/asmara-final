@@ -596,16 +596,110 @@
 
                   <!-- Edit & Cancel Actions - untuk creator atau admin pada agenda editable -->
                   <template v-else-if="canEditOrDelete(selectedAgenda)">
-                    <button @click="confirmEditAgenda(selectedAgenda)" class="btn btn-primary">
+                    <button @click="openEditConfirm(selectedAgenda)" class="btn btn-primary">
                       ✏️ Ubah Data
                     </button>
-                    <button @click="changeStatus(selectedAgenda, 'cancelled')" class="btn btn-danger">
+                    <button @click="openCancelConfirm(selectedAgenda)" class="btn btn-danger">
                       ❌ Batalkan
                     </button>
                   </template>
+                  
+                  <!-- Reminder Button - untuk admin pada agenda yang sudah approved dan belum lewat -->
+                  <button 
+                    v-if="selectedAgenda.is_approved && canSendReminder(selectedAgenda) && !isPastAgenda(selectedAgenda)"
+                    @click="showReminderConfirm = true"
+                    class="btn btn-reminder"
+                    :disabled="sendingReminder"
+                  >
+                    🔔 {{ sendingReminder ? 'Mengirim...' : 'Kirim Reminder' }}
+                  </button>
                 </div>
 
               </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ========== REMINDER CONFIRM MODAL ========== -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showReminderConfirm" class="confirm-overlay" @click.self="showReminderConfirm = false">
+          <div class="confirm-modal">
+            <div class="confirm-icon">🔔</div>
+            <h3 class="confirm-title">Kirim Reminder?</h3>
+            <p class="confirm-message">
+              Notifikasi WhatsApp akan dikirim ke <strong>{{ getTotalParticipants(selectedAgenda) }} peserta</strong> 
+              untuk mengingatkan tentang agenda:
+            </p>
+            <p class="confirm-agenda-title">{{ selectedAgenda?.title }}</p>
+            <p class="confirm-agenda-time">
+              📆 {{ formatDateTime(selectedAgenda?.start_at) }}
+            </p>
+            <div class="confirm-actions">
+              <button @click="showReminderConfirm = false" class="btn-confirm-cancel" :disabled="sendingReminder">
+                Batal
+              </button>
+              <button @click="sendReminder(selectedAgenda)" class="btn-confirm-send" :disabled="sendingReminder">
+                {{ sendingReminder ? '⏳ Mengirim...' : '🔔 Ya, Kirim Reminder' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ========== EDIT CONFIRM MODAL ========== -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showEditConfirm" class="confirm-overlay" @click.self="showEditConfirm = false">
+          <div class="confirm-modal">
+            <div class="confirm-icon">✏️</div>
+            <h3 class="confirm-title">Ubah Data Agenda?</h3>
+            <p class="confirm-message" v-if="pendingAgenda?.is_approved && !isAutoApprover">
+              ⚠️ Agenda ini sudah disetujui. Jika diubah, status akan kembali ke 
+              <strong>"Menunggu Persetujuan"</strong> dan memerlukan approval ulang.
+            </p>
+            <p class="confirm-message" v-else>
+              Anda akan mengubah data agenda ini. Lanjutkan?
+            </p>
+            <p class="confirm-agenda-title">{{ pendingAgenda?.title }}</p>
+            <div class="confirm-actions">
+              <button @click="showEditConfirm = false" class="btn-confirm-cancel">
+                Batal
+              </button>
+              <button @click="proceedEdit" class="btn-confirm-primary">
+                ✏️ Ya, Ubah Data
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ========== CANCEL CONFIRM MODAL ========== -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showCancelConfirm" class="confirm-overlay" @click.self="showCancelConfirm = false">
+          <div class="confirm-modal confirm-modal-danger">
+            <div class="confirm-icon">⚠️</div>
+            <h3 class="confirm-title">Batalkan Agenda?</h3>
+            <p class="confirm-message">
+              Agenda ini akan <strong>dibatalkan</strong> dan tidak dapat dikembalikan. 
+              Semua peserta tidak akan menerima notifikasi lagi.
+            </p>
+            <p class="confirm-agenda-title danger">{{ pendingAgenda?.title }}</p>
+            <p class="confirm-agenda-time">
+              📆 {{ formatDateTime(pendingAgenda?.start_at) }}
+            </p>
+            <div class="confirm-actions">
+              <button @click="showCancelConfirm = false" class="btn-confirm-cancel" :disabled="cancellingAgenda">
+                Kembali
+              </button>
+              <button @click="proceedCancel" class="btn-confirm-danger" :disabled="cancellingAgenda">
+                {{ cancellingAgenda ? '⏳ Membatalkan...' : '❌ Ya, Batalkan' }}
+              </button>
             </div>
           </div>
         </div>
@@ -677,6 +771,17 @@ const selectedDate = ref('')
 const selectedDateAgendas = ref([])
 const editMode = ref(false)
 const showFileUpload = ref(false)
+const showReminderConfirm = ref(false)
+const sendingReminder = ref(false)
+const showEditConfirm = ref(false)
+const showCancelConfirm = ref(false)
+const pendingAgenda = ref(null)
+const cancellingAgenda = ref(false)
+
+// Computed untuk cek apakah user bisa auto-approve
+const isAutoApprover = computed(() => {
+  return authStore.hasRole('super_admin') || authStore.hasRole('kepala')
+})
 
 const form = ref({
   title: '',
@@ -894,21 +999,87 @@ const rejectAgenda = async (agenda) => {
   }
 }
 
+// Open Edit Confirm Modal
+const openEditConfirm = (agenda) => {
+  pendingAgenda.value = agenda
+  showEditConfirm.value = true
+}
+
+// Open Cancel Confirm Modal
+const openCancelConfirm = (agenda) => {
+  pendingAgenda.value = agenda
+  showCancelConfirm.value = true
+}
+
+// Proceed with Edit
+const proceedEdit = () => {
+  showEditConfirm.value = false
+  if (pendingAgenda.value) {
+    editAgenda(pendingAgenda.value)
+  }
+}
+
+// Proceed with Cancel
+const proceedCancel = async () => {
+  if (!pendingAgenda.value) return
+  
+  cancellingAgenda.value = true
+  try {
+    await officeAgendaService.delete(pendingAgenda.value.id)
+    notificationStore.success('Agenda berhasil dibatalkan')
+    showCancelConfirm.value = false
+    showDetailModal.value = false
+    await loadAgendas()
+  } catch (error) {
+    notificationStore.error(error.response?.data?.message || 'Gagal membatalkan agenda')
+  } finally {
+    cancellingAgenda.value = false
+    pendingAgenda.value = null
+  }
+}
+
 const changeStatus = async (agenda, newStatus) => {
   if (newStatus === 'cancelled') {
-    if (!confirm('Apakah Anda yakin ingin membatalkan agenda ini?')) return
-
-    try {
-      await officeAgendaService.delete(agenda.id)
-      notificationStore.success('Agenda berhasil dibatalkan')
-      showDetailModal.value = false
-      await loadAgendas()
-    } catch (error) {
-      notificationStore.error(error.response?.data?.message || 'Terjadi kesalahan')
-    }
+    // Now handled by openCancelConfirm modal
+    openCancelConfirm(agenda)
   } else if (newStatus === 'schedule_change') {
     showDetailModal.value = false
     editAgenda(agenda)
+  }
+}
+
+// Cek apakah user bisa kirim reminder
+const canSendReminder = (agenda) => {
+  if (!agenda) return false
+  return authStore.hasRole('super_admin') || authStore.hasRole('kepala') || authStore.hasRole('ketua_tim') || authStore.hasRole('kasubbag')
+}
+
+// Cek apakah agenda sudah lewat
+const isPastAgenda = (agenda) => {
+  if (!agenda?.start_at) return false
+  return new Date(agenda.start_at) < new Date()
+}
+
+// Hitung total peserta
+const getTotalParticipants = (agenda) => {
+  if (!agenda) return 0
+  return (agenda.user_participants?.length || 0) + (agenda.participants?.length || 0)
+}
+
+// Kirim reminder ke semua peserta
+const sendReminder = async (agenda) => {
+  if (!agenda) return
+  
+  sendingReminder.value = true
+  try {
+    const response = await api.post(`/office-agendas/${agenda.id}/reminder`)
+    notificationStore.success(response.data.message || 'Reminder berhasil dikirim!')
+    showReminderConfirm.value = false
+    showDetailModal.value = false
+  } catch (error) {
+    notificationStore.error(error.response?.data?.message || 'Gagal mengirim reminder')
+  } finally {
+    sendingReminder.value = false
   }
 }
 
@@ -2555,5 +2726,232 @@ onMounted(async () => {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+/* Confirm Modal Styles */
+.confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.confirm-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.confirm-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+.confirm-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 12px 0;
+}
+
+.confirm-message {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.confirm-agenda-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e40af;
+  margin: 0 0 8px 0;
+  padding: 12px;
+  background: #eff6ff;
+  border-radius: 8px;
+}
+
+.confirm-agenda-time {
+  font-size: 0.9rem;
+  color: #475569;
+  margin: 0 0 24px 0;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btn-confirm-cancel {
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-confirm-cancel:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.btn-confirm-send {
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-confirm-send:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  transform: translateY(-1px);
+}
+
+.btn-confirm-send:disabled,
+.btn-confirm-cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Reminder Button */
+.btn-reminder {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-reminder:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  transform: translateY(-1px);
+}
+
+.btn-reminder:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Modal fade transition */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+/* Confirm Primary Button (Blue) */
+.btn-confirm-primary {
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-confirm-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb, #1e3a8a);
+  transform: translateY(-1px);
+}
+
+/* Confirm Danger Button (Red) */
+.btn-confirm-danger {
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-confirm-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  transform: translateY(-1px);
+}
+
+.btn-confirm-primary:disabled,
+.btn-confirm-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Danger Modal Variant */
+.confirm-modal-danger .confirm-title {
+  color: #dc2626;
+}
+
+.confirm-agenda-title.danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+/* Confirm Send Button (already exists but ensure gradient consistency) */
+.btn-confirm-send {
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-confirm-send:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  transform: translateY(-1px);
+}
+
+.btn-confirm-send:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

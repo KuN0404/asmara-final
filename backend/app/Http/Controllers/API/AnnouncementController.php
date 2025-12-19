@@ -96,16 +96,24 @@ public function store(Request $request)
         'title' => 'required|string',
         'content' => 'required|string',
         'is_notification' => 'boolean',
+        'attachment_links' => 'nullable|array',
+        'attachment_links.*' => 'nullable|url|max:500',
         'attachments' => 'nullable|array',
         'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:10240',
     ]);
 
     DB::beginTransaction();
     try {
+        // Filter empty links
+        $attachmentLinks = isset($validated['attachment_links']) 
+            ? array_values(array_filter($validated['attachment_links'], fn($link) => !empty($link))) 
+            : null;
+        
         // HANYA 1 CREATE
         $announcement = Announcement::create([
             'title' => $validated['title'],
             'content' => $validated['content'],
+            'attachment_links' => $attachmentLinks,
             'is_notification' => $validated['is_notification'] ?? false,
             'created_by' => auth()->id(),
         ]);
@@ -234,16 +242,24 @@ $validated = $request->validate([
 'title' => 'sometimes|string',
 'content' => 'sometimes|string',
 'is_notification' => 'boolean',
+'attachment_links' => 'nullable|array',
+'attachment_links.*' => 'nullable|url|max:500',
 'attachments' => 'nullable|array',
 'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:10240',
 'keep_attachment_ids' => 'nullable|array',
 'keep_attachment_ids.*' => 'integer|exists:attachments,id',
 ]);
 
+// Filter empty links
+$attachmentLinks = isset($validated['attachment_links']) 
+    ? array_values(array_filter($validated['attachment_links'], fn($link) => !empty($link))) 
+    : $announcement->attachment_links;
+
 // Update data announcement
 $announcement->update([
 'title' => $validated['title'] ?? $announcement->title,
 'content' => $validated['content'] ?? $announcement->content,
+'attachment_links' => $attachmentLinks,
 'is_notification' => $validated['is_notification'] ?? $announcement->is_notification,
 ]);
 
